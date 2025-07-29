@@ -1,0 +1,623 @@
+[gd_scene load_steps=9 format=3 uid="uid://bf40cahvr6rcd"]
+
+[ext_resource type="Script" uid="uid://dgrnafxy4fk26" path="res://addons/xogot_remote_debugger/xogot.gd" id="1_u0s5b"]
+[ext_resource type="Texture2D" uid="uid://cw3ci5a3wkm6u" path="res://addons/xogot_remote_debugger/resources/remoteDebugButton.png" id="2_remote_debug_button"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_apple_hover"]
+content_margin_left = 12.0
+content_margin_top = 6.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+bg_color = Color(0.2, 0.2, 0.2, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_apple_pressed"]
+content_margin_left = 12.0
+content_margin_top = 6.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+bg_color = Color(0.4, 0.4, 0.4, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_apple"]
+content_margin_left = 12.0
+content_margin_top = 6.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+bg_color = Color(0, 0, 0, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_email_hover"]
+content_margin_left = 12.0
+content_margin_top = 6.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+bg_color = Color(0.3, 0.5, 0.9, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_email_pressed"]
+content_margin_left = 12.0
+content_margin_top = 6.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+bg_color = Color(0.1, 0.3, 0.7, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_email"]
+content_margin_left = 12.0
+content_margin_top = 6.0
+content_margin_right = 12.0
+content_margin_bottom = 6.0
+bg_color = Color(0.2, 0.4, 0.8, 1)
+corner_radius_top_left = 8
+corner_radius_top_right = 8
+corner_radius_bottom_right = 8
+corner_radius_bottom_left = 8
+
+[node name="Xogot" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_u0s5b")
+
+[node name="LoginPanel" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="LoginPanel"]
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+
+[node name="XogotTitle" type="Label" parent="LoginPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 32
+text = "Login to Xogot"
+horizontal_alignment = 1
+
+[node name="Spacer1" type="Control" parent="LoginPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
+[node name="ExplanationLabel" type="Label" parent="LoginPanel/VBoxContainer"]
+layout_mode = 2
+text = "To share your games with friends, we need to authenticate you. Choose your preferred login method below."
+horizontal_alignment = 1
+autowrap_mode = 3
+
+[node name="Spacer2" type="Control" parent="LoginPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 32)
+layout_mode = 2
+
+[node name="AppleLoginButton" type="Button" parent="LoginPanel/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_colors/font_hover_color = Color(0.9, 0.9, 0.9, 1)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_styles/hover = SubResource("StyleBoxFlat_apple_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_apple_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_apple")
+text = "Sign in with Apple"
+
+[node name="Spacer3" type="Control" parent="LoginPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+
+[node name="EmailLoginButton" type="Button" parent="LoginPanel/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_colors/font_hover_color = Color(0.9, 0.9, 0.9, 1)
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+theme_override_colors/font_pressed_color = Color(0.8, 0.8, 0.8, 1)
+theme_override_styles/hover = SubResource("StyleBoxFlat_email_hover")
+theme_override_styles/pressed = SubResource("StyleBoxFlat_email_pressed")
+theme_override_styles/normal = SubResource("StyleBoxFlat_email")
+text = "Sign in with Email"
+
+[node name="EmailLoginPanel" type="VBoxContainer" parent="LoginPanel"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+
+[node name="BackButton" type="Button" parent="LoginPanel/EmailLoginPanel"]
+layout_mode = 2
+text = "← Back"
+flat = true
+
+[node name="EmailTitle" type="Label" parent="LoginPanel/EmailLoginPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Sign in with Email"
+horizontal_alignment = 1
+
+[node name="EmailInstructions" type="Label" parent="LoginPanel/EmailLoginPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Enter your email address to receive a verification code"
+autowrap_mode = 2
+
+[node name="Spacer4" type="Control" parent="LoginPanel/EmailLoginPanel"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+
+[node name="EmailContainer" type="VBoxContainer" parent="LoginPanel/EmailLoginPanel"]
+layout_mode = 2
+
+[node name="EmailLabel" type="Label" parent="LoginPanel/EmailLoginPanel/EmailContainer"]
+layout_mode = 2
+text = "Email Address:"
+
+[node name="EmailInput" type="LineEdit" parent="LoginPanel/EmailLoginPanel/EmailContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Enter your email..."
+
+[node name="Spacer5" type="Control" parent="LoginPanel/EmailLoginPanel"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+
+[node name="SendCodeButton" type="Button" parent="LoginPanel/EmailLoginPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Send Verification Code"
+
+[node name="VerificationPanel" type="VBoxContainer" parent="LoginPanel/EmailLoginPanel"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="VerificationInstructions" type="Label" parent="LoginPanel/EmailLoginPanel/VerificationPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "Check your email for the verification code"
+autowrap_mode = 2
+
+[node name="Spacer7" type="Control" parent="LoginPanel/EmailLoginPanel/VerificationPanel"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+
+[node name="CodeLabel" type="Label" parent="LoginPanel/EmailLoginPanel/VerificationPanel"]
+layout_mode = 2
+text = "Verification Code:"
+
+[node name="CodeInput" type="LineEdit" parent="LoginPanel/EmailLoginPanel/VerificationPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Enter 6-digit code..."
+
+[node name="Spacer8" type="Control" parent="LoginPanel/EmailLoginPanel/VerificationPanel"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+
+[node name="VerifyCodeButton" type="Button" parent="LoginPanel/EmailLoginPanel/VerificationPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Verify Code"
+
+[node name="ResendCodeButton" type="Button" parent="LoginPanel/EmailLoginPanel/VerificationPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Resend Code"
+flat = true
+
+[node name="ProfilePanel" type="VBoxContainer" parent="LoginPanel"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+
+[node name="ProfileTitle" type="Label" parent="LoginPanel/ProfilePanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Profile"
+horizontal_alignment = 1
+
+[node name="Spacer1" type="Control" parent="LoginPanel/ProfilePanel"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="UserInfoContainer" type="VBoxContainer" parent="LoginPanel/ProfilePanel"]
+layout_mode = 2
+
+[node name="UserNameLabel" type="Label" parent="LoginPanel/ProfilePanel/UserInfoContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 14
+text = "Username:"
+
+[node name="UserNameValue" type="Label" parent="LoginPanel/ProfilePanel/UserInfoContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 18
+text = "Not set"
+
+[node name="Spacer3" type="Control" parent="LoginPanel/ProfilePanel"]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+
+[node name="ContinueButton" type="Button" parent="LoginPanel/ProfilePanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+text = "Back to Devices"
+
+[node name="Spacer4" type="Control" parent="LoginPanel/ProfilePanel"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="LogoutButton" type="Button" parent="LoginPanel/ProfilePanel"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 44)
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
+text = "Logout"
+flat = true
+
+[node name="AppleLoginPanel" type="VBoxContainer" parent="LoginPanel"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(280, 0)
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+
+[node name="BackButton2" type="Button" parent="LoginPanel/AppleLoginPanel"]
+layout_mode = 2
+text = "← Back"
+flat = true
+
+[node name="AppleTitle" type="Label" parent="LoginPanel/AppleLoginPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 24
+text = "Sign in with Apple"
+horizontal_alignment = 1
+
+[node name="AppleInstructions" type="Label" parent="LoginPanel/AppleLoginPanel"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 18
+text = "1. Open browser
+2. Complete login
+3. Copy API key
+4. Paste below"
+autowrap_mode = 2
+
+[node name="Spacer7" type="Control" parent="LoginPanel/AppleLoginPanel"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+
+[node name="LaunchAppleBrowserButton" type="Button" parent="LoginPanel/AppleLoginPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Open Browser"
+
+[node name="UrlLabel" type="Label" parent="LoginPanel/AppleLoginPanel"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+theme_override_font_sizes/font_size = 14
+text = "Or visit: https://share.xogot.com/login-apple"
+horizontal_alignment = 1
+autowrap_mode = 2
+
+[node name="Spacer8" type="Control" parent="LoginPanel/AppleLoginPanel"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+
+[node name="AppleApiKeyContainer" type="VBoxContainer" parent="LoginPanel/AppleLoginPanel"]
+layout_mode = 2
+
+[node name="AppleApiKeyLabel" type="Label" parent="LoginPanel/AppleLoginPanel/AppleApiKeyContainer"]
+layout_mode = 2
+text = "API Key:"
+
+[node name="AppleApiKeyInput" type="LineEdit" parent="LoginPanel/AppleLoginPanel/AppleApiKeyContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Paste your API key here..."
+
+[node name="Spacer9" type="Control" parent="LoginPanel/AppleLoginPanel"]
+custom_minimum_size = Vector2(0, 16)
+layout_mode = 2
+
+[node name="SubmitAppleApiKeyButton" type="Button" parent="LoginPanel/AppleLoginPanel"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Submit API Key"
+
+[node name="ScanPanel" type="MarginContainer" parent="."]
+unique_name_in_owner = true
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ScanPanel"]
+layout_mode = 2
+
+[node name="HeaderContainer" type="HBoxContainer" parent="ScanPanel/VBoxContainer"]
+layout_mode = 2
+
+[node name="TitleLabel" type="Label" parent="ScanPanel/VBoxContainer/HeaderContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "Xogot Remote Debugger"
+
+[node name="Spacer" type="Control" parent="ScanPanel/VBoxContainer/HeaderContainer"]
+layout_mode = 2
+size_flags_horizontal = 3
+
+[node name="ProfileButton" type="Button" parent="ScanPanel/VBoxContainer/HeaderContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Profile"
+flat = true
+
+[node name="HeaderSpacer" type="Control" parent="ScanPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="FileServerWarning" type="Label" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+text = "Please enable file server: Debug -> Small Deploy with Network Filesystem"
+autowrap_mode = 3
+
+[node name="RemoteHostWarning" type="Label" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+text = "Remote host is set to 127.0.0.1. Change it to your IP in Godot -> Editor  Settings -> Network -> Debug -> Settings -> Remote Host"
+autowrap_mode = 3
+
+[node name="ExportPresetWarning" type="Label" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+text = "Xogot export preset missing. Please create one in Project > Export > Add... > Xogot"
+autowrap_mode = 3
+
+[node name="RemoteDebugWarning" type="Label" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+text = "Please enable remote debug: Debug -> Small Deploy with Remote Debug"
+autowrap_mode = 3
+
+[node name="TcpServerError" type="Label" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+text = "TCP Server Error"
+autowrap_mode = 3
+
+[node name="ScanButton" type="Button" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Enable"
+
+[node name="ManualAddSpacer" type="Control" parent="ScanPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
+
+[node name="ManualAddContainer" type="VBoxContainer" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="ManualAddLabel" type="Label" parent="ScanPanel/VBoxContainer/ManualAddContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Manual Device Connection"
+
+[node name="ManualAddSpacer1" type="Control" parent="ScanPanel/VBoxContainer/ManualAddContainer"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="IPAddressContainer" type="VBoxContainer" parent="ScanPanel/VBoxContainer/ManualAddContainer"]
+layout_mode = 2
+
+[node name="IPLabel" type="Label" parent="ScanPanel/VBoxContainer/ManualAddContainer/IPAddressContainer"]
+layout_mode = 2
+text = "IP Address:"
+
+[node name="IPInput" type="LineEdit" parent="ScanPanel/VBoxContainer/ManualAddContainer/IPAddressContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "192.168.1.100"
+
+[node name="PortContainer" type="VBoxContainer" parent="ScanPanel/VBoxContainer/ManualAddContainer"]
+layout_mode = 2
+
+[node name="PortLabel" type="Label" parent="ScanPanel/VBoxContainer/ManualAddContainer/PortContainer"]
+layout_mode = 2
+text = "Port:"
+
+[node name="PortInput" type="LineEdit" parent="ScanPanel/VBoxContainer/ManualAddContainer/PortContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "9987"
+placeholder_text = "9987"
+
+[node name="DeviceNameContainer" type="VBoxContainer" parent="ScanPanel/VBoxContainer/ManualAddContainer"]
+layout_mode = 2
+
+[node name="NameLabel" type="Label" parent="ScanPanel/VBoxContainer/ManualAddContainer/DeviceNameContainer"]
+layout_mode = 2
+text = "Device Name:"
+
+[node name="NameInput" type="LineEdit" parent="ScanPanel/VBoxContainer/ManualAddContainer/DeviceNameContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+placeholder_text = "My Device"
+
+[node name="ManualAddSpacer2" type="Control" parent="ScanPanel/VBoxContainer/ManualAddContainer"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="AddDeviceButton" type="Button" parent="ScanPanel/VBoxContainer/ManualAddContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+disabled = true
+text = "Add Device"
+
+[node name="ManualAddSpacer3" type="Control" parent="ScanPanel/VBoxContainer/ManualAddContainer"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="ManualAddSeparator" type="HSeparator" parent="ScanPanel/VBoxContainer/ManualAddContainer"]
+layout_mode = 2
+
+[node name="DevicesHeader" type="Label" parent="ScanPanel/VBoxContainer"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 16
+text = "Discovered Devices"
+
+[node name="AddManualDeviceButton" type="Button" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "+ Add Device Manually"
+
+[node name="DevicesSpacer" type="Control" parent="ScanPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
+[node name="NoDevicesHelp" type="MarginContainer" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 20
+
+[node name="HelpText" type="Label" parent="ScanPanel/VBoxContainer/NoDevicesHelp"]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+text = "No devices found.
+
+Make sure you:
+• Are signed into the Xogot app on your device
+• Have selected the Remote tab in the app
+• Are on the same network as this computer"
+autowrap_mode = 2
+
+[node name="DevicesItemList" type="VBoxContainer" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="RemoteDebugHelp" type="MarginContainer" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 20
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ScanPanel/VBoxContainer/RemoteDebugHelp"]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="InstructionLabel" type="Label" parent="ScanPanel/VBoxContainer/RemoteDebugHelp/VBoxContainer"]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
+theme_override_font_sizes/font_size = 16
+text = "Device connected! Now use the Remote Debug button to launch:"
+autowrap_mode = 2
+
+[node name="ButtonImageContainer" type="CenterContainer" parent="ScanPanel/VBoxContainer/RemoteDebugHelp/VBoxContainer"]
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 0
+
+[node name="RemoteDebugButtonImage" type="TextureRect" parent="ScanPanel/VBoxContainer/RemoteDebugHelp/VBoxContainer/ButtonImageContainer"]
+custom_minimum_size = Vector2(44, 100)
+layout_mode = 2
+texture = ExtResource("2_remote_debug_button")
+expand_mode = 3
+stretch_mode = 4
+
+[node name="AdditionalHelp" type="Label" parent="ScanPanel/VBoxContainer/RemoteDebugHelp/VBoxContainer"]
+custom_minimum_size = Vector2(44, 44)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
+text = "Click the 'Remote Deploy' button and select a device."
+autowrap_mode = 2
+
+[connection signal="pressed" from="LoginPanel/VBoxContainer/AppleLoginButton" to="." method="_on_apple_login_button_pressed"]
+[connection signal="pressed" from="LoginPanel/VBoxContainer/EmailLoginButton" to="." method="_on_email_login_button_pressed"]
+[connection signal="pressed" from="LoginPanel/EmailLoginPanel/BackButton" to="." method="_on_email_back_button_pressed"]
+[connection signal="text_changed" from="LoginPanel/EmailLoginPanel/EmailContainer/EmailInput" to="." method="_on_email_input_text_changed"]
+[connection signal="pressed" from="LoginPanel/EmailLoginPanel/SendCodeButton" to="." method="_on_send_code_button_pressed"]
+[connection signal="text_changed" from="LoginPanel/EmailLoginPanel/VerificationPanel/CodeInput" to="." method="_on_code_input_text_changed"]
+[connection signal="pressed" from="LoginPanel/EmailLoginPanel/VerificationPanel/VerifyCodeButton" to="." method="_on_verify_code_button_pressed"]
+[connection signal="pressed" from="LoginPanel/EmailLoginPanel/VerificationPanel/ResendCodeButton" to="." method="_on_resend_code_button_pressed"]
+[connection signal="pressed" from="LoginPanel/ProfilePanel/ContinueButton" to="." method="_on_continue_button_pressed"]
+[connection signal="pressed" from="LoginPanel/ProfilePanel/LogoutButton" to="." method="_on_logout_button_pressed"]
+[connection signal="pressed" from="LoginPanel/AppleLoginPanel/BackButton2" to="." method="_on_apple_back_button_pressed"]
+[connection signal="pressed" from="LoginPanel/AppleLoginPanel/LaunchAppleBrowserButton" to="." method="_on_launch_apple_browser_button_pressed"]
+[connection signal="text_changed" from="LoginPanel/AppleLoginPanel/AppleApiKeyContainer/AppleApiKeyInput" to="." method="_on_apple_api_key_input_text_changed"]
+[connection signal="pressed" from="LoginPanel/AppleLoginPanel/SubmitAppleApiKeyButton" to="." method="_on_submit_apple_api_key_button_pressed"]
+[connection signal="pressed" from="ScanPanel/VBoxContainer/HeaderContainer/ProfileButton" to="." method="_on_profile_button_pressed"]
+[connection signal="pressed" from="ScanPanel/VBoxContainer/ScanButton" to="." method="_on_scan_button_pressed"]
+[connection signal="text_changed" from="ScanPanel/VBoxContainer/ManualAddContainer/IPAddressContainer/IPInput" to="." method="_on_manual_ip_input_text_changed"]
+[connection signal="text_changed" from="ScanPanel/VBoxContainer/ManualAddContainer/PortContainer/PortInput" to="." method="_on_manual_port_input_text_changed"]
+[connection signal="text_changed" from="ScanPanel/VBoxContainer/ManualAddContainer/DeviceNameContainer/NameInput" to="." method="_on_manual_name_input_text_changed"]
+[connection signal="pressed" from="ScanPanel/VBoxContainer/ManualAddContainer/AddDeviceButton" to="." method="_on_add_device_button_pressed"]
+[connection signal="pressed" from="ScanPanel/VBoxContainer/AddManualDeviceButton" to="." method="_on_add_manual_device_button_pressed"]

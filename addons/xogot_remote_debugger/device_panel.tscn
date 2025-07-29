@@ -1,0 +1,48 @@
+[gd_scene load_steps=2 format=3 uid="uid://g4m35ps5txfm"]
+
+[ext_resource type="Script" uid="uid://ccdvyocb41wl5" path="res://addons/xogot_remote_debugger/device_panel.gd" id="1_device"]
+
+[node name="DevicePanel" type="Panel"]
+custom_minimum_size = Vector2(300, 60)
+offset_right = 300.0
+offset_bottom = 60.0
+size_flags_horizontal = 3
+size_flags_vertical = 3
+script = ExtResource("1_device")
+
+[node name="HBoxContainer" type="HBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/separation = 8
+
+[node name="IndicatorContainer" type="CenterContainer" parent="HBoxContainer"]
+layout_mode = 2
+
+[node name="StateIndicator" type="ColorRect" parent="HBoxContainer/IndicatorContainer"]
+custom_minimum_size = Vector2(8, 8)
+layout_mode = 2
+color = Color(0.745098, 0.745098, 0.745098, 1)
+
+[node name="DeviceLabel" type="Label" parent="HBoxContainer"]
+custom_minimum_size = Vector2(20, 44)
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 1
+text = "Device Name (IP:Port)"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="RemoveButton" type="Button" parent="HBoxContainer"]
+unique_name_in_owner = true
+visible = false
+custom_minimum_size = Vector2(60, 24)
+layout_mode = 2
+theme_override_colors/font_hover_color = Color(1, 0.5, 0.5, 1)
+theme_override_colors/font_color = Color(1, 0.3, 0.3, 1)
+theme_override_colors/font_pressed_color = Color(0.8, 0.2, 0.2, 1)
+text = "Remove"
