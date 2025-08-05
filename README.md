@@ -4,7 +4,7 @@ A Godot addon that enables remote debugging of your Godot projects on iOS device
 
 ## Prerequisites
 
-- **Xogot App**: Download from the [Apple App Store](https://apps.apple.com/us/app/xogot-make-games-anywhere/id6469385251)
+- **Xogot App**: Requires Xogot from [TestFlight](https://docs.xogot.com/documentation/xogot/testflight/)
 - **Godot Engine**: 4.4.1
 
 ## Installation
