@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "/Users/clancey/Projects/xogot_remote_debug/logs/.eb7cd1a26d5d8e3923392ab4f804a085496a770d-audit.json",
+    "files": [
+        {
+            "date": 1761858702391,
+            "name": "/Users/clancey/Projects/xogot_remote_debug/logs/mcp-puppeteer-2025-10-30.log",
+            "hash": "56db94185e3879b6b4447460635c700fd87e6a474eaa934098bfc75f7c4258fe"
+        }
+    ],
+    "hashType": "sha256"
+}

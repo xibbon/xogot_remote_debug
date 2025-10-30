@@ -3,6 +3,9 @@ extends Control
 
 const XogotDebug = preload("res://addons/xogot_remote_debugger/xogot_debug.gd")
 
+# Plugin version
+const PLUGIN_VERSION = "1.0.0"
+
 var FILE_NAME: String:
 	get:
 		return EditorInterface.get_editor_paths().get_data_dir().path_join("Xogot").path_join("xogot_user.tres")
@@ -37,6 +40,11 @@ var user = User.new()
 @onready var no_devices_help: MarginContainer = %NoDevicesHelp
 @onready var remote_debug_help: MarginContainer = %RemoteDebugHelp
 
+# Update notification UI (created programmatically)
+var update_notification_panel: PanelContainer = null
+var update_notification_label: Label = null
+var update_download_button: Button = null
+
 var is_logged_in := false
 const APPLE_LOGIN_URL = "https://share.xogot.com/login-apple"
 const API_BASE_URL = "https://xogotapi.azurewebsites.net/api/"
@@ -45,6 +53,14 @@ const VERIFY_CODE_ENDPOINT = "LoginPin"
 
 var http_request: HTTPRequest = null
 var pending_email: String = ""
+
+# Version check
+var version_check_request: HTTPRequest = null
+var update_available := false
+var required_update := false
+var latest_version := ""
+var download_url := ""
+var update_description := ""
 
 var export_platform: XogotExportPlatform = null
 var plugin: EditorPlugin = null
@@ -127,13 +143,23 @@ func _ready() -> void:
 	http_request = HTTPRequest.new()
 	add_child(http_request)
 
+	# Initialize version check HTTP request
+	version_check_request = HTTPRequest.new()
+	add_child(version_check_request)
+
 	# Initialize version confirmation dialog
 	version_dialog = ConfirmationDialog.new()
 	version_dialog.title = "Godot Version Mismatch"
 	version_dialog.ok_button_text = "Connect Anyway"
 	version_dialog.cancel_button_text = "Cancel"
 	add_child(version_dialog)
-	
+
+	# Create update notification UI
+	_create_update_notification_ui()
+
+	# Check for plugin updates
+	check_plugin_version()
+
 	# Check login status and show appropriate panel
 	check_login_status()
 	
@@ -1458,3 +1484,118 @@ func _on_add_manual_device_button_pressed():
 				add_manual_device_button.text = "− Hide Manual Connection"
 			else:
 				add_manual_device_button.text = "+ Add Device Manually"
+
+func _create_update_notification_ui():
+	# Create a panel container for the update notification
+	update_notification_panel = PanelContainer.new()
+	update_notification_panel.visible = false
+
+	# Add some styling
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(0.2, 0.5, 0.8, 0.9)  # Blue background
+	style.set_corner_radius_all(5)
+	style.content_margin_left = 10
+	style.content_margin_right = 10
+	style.content_margin_top = 5
+	style.content_margin_bottom = 5
+	update_notification_panel.add_theme_stylebox_override("panel", style)
+
+	# Create an HBoxContainer to hold label and button
+	var hbox = HBoxContainer.new()
+	update_notification_panel.add_child(hbox)
+
+	# Create label
+	update_notification_label = Label.new()
+	update_notification_label.text = "Update available!"
+	update_notification_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox.add_child(update_notification_label)
+
+	# Create download button
+	update_download_button = Button.new()
+	update_download_button.text = "Download"
+	update_download_button.pressed.connect(_on_update_download_pressed)
+	hbox.add_child(update_download_button)
+
+	# Add to scan panel at the top
+	if scan_panel:
+		scan_panel.add_child(update_notification_panel)
+		scan_panel.move_child(update_notification_panel, 0)  # Move to top
+
+func _show_update_notification():
+	if update_notification_panel and update_available:
+		update_notification_label.text = "Update available: v%s - %s" % [latest_version, update_description]
+		update_notification_panel.visible = true
+
+func _on_update_download_pressed():
+	if download_url != "":
+		OS.shell_open(download_url)
+		debug_print("Opening download URL: " + download_url)
+
+# Version check functions
+func check_plugin_version():
+	var url = API_BASE_URL + "CheckExtensionVersion?version=" + PLUGIN_VERSION
+	debug_print("Checking for plugin updates: " + url)
+
+	# Disconnect any existing connections
+	if version_check_request.request_completed.is_connected(_on_version_check_completed):
+		version_check_request.request_completed.disconnect(_on_version_check_completed)
+
+	# Connect signal for response
+	version_check_request.request_completed.connect(_on_version_check_completed)
+
+	# Make request
+	var error = version_check_request.request(url, [], HTTPClient.METHOD_GET)
+	if error != OK:
+		printerr("Failed to check for updates: ", error)
+
+func _on_version_check_completed(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray):
+	# Disconnect signal
+	version_check_request.request_completed.disconnect(_on_version_check_completed)
+
+	if response_code == 200:
+		var json = JSON.new()
+		var json_string = body.get_string_from_utf8()
+		var parse_result = json.parse(json_string)
+
+		if parse_result == OK:
+			var data = json.data
+			debug_print("Version check response: " + json_string)
+
+			update_available = not data.get("isUpToDate", true)
+			required_update = data.get("isRequiredUpdate", false)
+			latest_version = data.get("latestVersion", "")
+			download_url = data.get("downloadUrl", "")
+			update_description = data.get("description", "")
+
+			if required_update:
+				# Show required update popup immediately
+				_show_required_update_dialog()
+			elif update_available:
+				# Show update notification in UI
+				debug_print("Update available: " + latest_version)
+				_show_update_notification()
+		else:
+			printerr("Failed to parse version check response")
+	else:
+		printerr("Version check failed with status code: ", response_code)
+
+func _show_required_update_dialog():
+	var dialog = AcceptDialog.new()
+	dialog.title = "Required Update"
+	dialog.dialog_text = "A required update is available!\n\n"
+	dialog.dialog_text += "Current Version: " + PLUGIN_VERSION + "\n"
+	dialog.dialog_text += "Latest Version: " + latest_version + "\n\n"
+	dialog.dialog_text += update_description + "\n\n"
+	dialog.dialog_text += "Please update to continue using Xogot Remote Debugger."
+
+	# Add a button to open download URL
+	dialog.add_button("Download Update", true, "download")
+	dialog.custom_action.connect(_on_update_dialog_action)
+
+	add_child(dialog)
+	dialog.popup_centered()
+
+func _on_update_dialog_action(action: String):
+	if action == "download" and download_url != "":
+		OS.shell_open(download_url)
+		debug_print("Opening download URL: " + download_url)
