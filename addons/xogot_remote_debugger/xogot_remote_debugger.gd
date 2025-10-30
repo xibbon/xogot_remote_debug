@@ -6,6 +6,8 @@ var dock
 var xogot_export_platform
 
 func _enter_tree():
+	if OS.has_feature("mobile"):
+		return
 
 	xogot_export_platform = preload("res://addons/xogot_remote_debugger/xogot_export_platform.gd").new()
 	add_export_platform(xogot_export_platform)
@@ -23,6 +25,8 @@ func _enter_tree():
 
 
 func _exit_tree():
+	if OS.has_feature("mobile"):
+		return
 
 	remove_export_platform(xogot_export_platform)
 	# Clean-up of the plugin goes here.

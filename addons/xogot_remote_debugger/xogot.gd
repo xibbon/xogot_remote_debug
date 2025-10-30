@@ -1,5 +1,8 @@
 @tool
 extends Control
+
+const XogotDebug = preload("res://addons/xogot_remote_debugger/xogot_debug.gd")
+
 var FILE_NAME: String:
 	get:
 		return EditorInterface.get_editor_paths().get_data_dir().path_join("Xogot").path_join("xogot_user.tres")
@@ -60,30 +63,47 @@ var tcp_clients := []
 const TCP_PORT := 9998
 var tcp_server_running := false
 
+# Store pending devices awaiting version confirmation during discovery
+var pending_devices := {}  # {device_id: device_data}
+var version_dialog: ConfirmationDialog = null
+
+# Track approved version mismatches (versions the user has approved connecting to)
+var approved_versions := {}  # {version_string: bool}
+
+# Track rejected version mismatches (versions the user has rejected)
+var rejected_versions := {}  # {version_string: bool}
+
+# Current device being prompted for version confirmation
+var current_version_prompt_device_id: String = ""
+
+func debug_print(message: String):
+	if XogotDebug.ENABLED:
+		print(message)
+
 func saveUser():
 	if user.device_id == "":
 		user.device_id = generate_guid()
-	print("Saving user with API key: ", user.api_key)
+	debug_print("Saving user with API key: " + user.api_key)
 	# Ensure the Xogot directory exists
 	var xogot_dir = EditorInterface.get_editor_paths().get_data_dir().path_join("Xogot")
 	var dir = DirAccess.open(EditorInterface.get_editor_paths().get_data_dir())
 	if dir and not dir.dir_exists("Xogot"):
 		dir.make_dir("Xogot")
 	var result = ResourceSaver.save(user, FILE_NAME)
-	print("Save result: ", result)
+	debug_print("Save result: " + str(result))
 	if result != OK:
 		printerr("Failed to save user data: ", result)
 func loadUser():
 	var hasUser := false
-	print("Attempting to load user from: ", FILE_NAME)
+	debug_print("Attempting to load user from: " + FILE_NAME)
 	if ResourceLoader.exists(FILE_NAME):
-		print("File exists, loading...")
+		debug_print("File exists, loading...")
 		var loaded_user = ResourceLoader.load(FILE_NAME)
-		print("Loaded resource type: ", type_string(typeof(loaded_user)))
+		debug_print("Loaded resource type: " + type_string(typeof(loaded_user)))
 		if loaded_user is User:
 			user = loaded_user
 			hasUser = true
-			print("Successfully loaded user with API key: ", user.api_key)
+			debug_print("Successfully loaded user with API key: " + user.api_key)
 			if user.device_id == "":
 				user.device_id = generate_guid()
 			#IF there is an apikey, we are logged in.
@@ -91,9 +111,9 @@ func loadUser():
 		else:
 			printerr("Invalid data type in file! Expected User, got: ", type_string(typeof(loaded_user)))
 	else:
-		print("No saved data file found at: ", FILE_NAME)
+		debug_print("No saved data file found at: " + FILE_NAME)
 	if !hasUser:
-		print("Creating new user")
+		debug_print("Creating new user")
 		user = User.new()
 		user.device_id = generate_guid()
 var settings := EditorInterface.get_editor_settings()
@@ -102,10 +122,17 @@ func _ready() -> void:
 	loadUser()
 	# start_scanning()
 	set_process(true)
-	
+
 	# Initialize HTTP request node
 	http_request = HTTPRequest.new()
 	add_child(http_request)
+
+	# Initialize version confirmation dialog
+	version_dialog = ConfirmationDialog.new()
+	version_dialog.title = "Godot Version Mismatch"
+	version_dialog.ok_button_text = "Connect Anyway"
+	version_dialog.cancel_button_text = "Cancel"
+	add_child(version_dialog)
 	
 	# Check login status and show appropriate panel
 	check_login_status()
@@ -130,8 +157,8 @@ func _exit_tree():
 		stop_scanning()
 		stop_tcp_server()
 		stop_udp_listener()
-	
-	print("Xogot Remote Debugger Plugin cleaned up")
+
+	debug_print("Xogot Remote Debugger Plugin cleaned up")
 
 func check_login_status():
 	# Check if user has an API key or valid login token
@@ -292,7 +319,7 @@ custom_template/release=""
 	
 	file.store_string(preset_content)
 	file.close()
-	print("Created Xogot export preset at index %d in export_presets.cfg" % next_preset_index)
+	debug_print("Created Xogot export preset at index %d in export_presets.cfg" % next_preset_index)
 	return true
 
 func ensureXogotExportPreset():
@@ -329,8 +356,8 @@ func _try_refresh_export_presets():
 	
 	# Method 6: Force update the UI
 	_update_file_server_warning()
-	
-	print("Attempted to refresh export presets")
+
+	debug_print("Attempted to refresh export presets")
 
 func removeXogotExportPreset():
 	if not hasXogotExportPreset():
@@ -387,7 +414,7 @@ func removeXogotExportPreset():
 	if file:
 		file.store_string("\n".join(new_lines))
 		file.close()
-		print("Removed Xogot export preset")
+		debug_print("Removed Xogot export preset")
 		_update_file_server_warning()  # Update UI to reflect the change
 
 func _update_file_server_warning():
@@ -419,16 +446,16 @@ func start_scanning():
 	udp_client.set_broadcast_enabled(true)
 	var err = udp_client.bind(MDNS_PORT)
 	if err != OK:
-		print("Error binding to port: " + str(err))
+		debug_print("Error binding to port: " + str(err))
 		return
-	print("listening")
+	debug_print("listening")
 
 func stop_scanning():
 	isScanning = false
 	if udp_client and udp_client.is_bound():
 		udp_client.close()
 		udp_client = null
-	print("Stopped scanning")
+	debug_print("Stopped scanning")
 
 	
 	
@@ -443,13 +470,13 @@ func start_udp_listener():
 	if err != OK:
 		printerr("Failed to bind UDP listener on port ", UDP_LISTENER_PORT, ": ", err)
 		return
-	print("Started UDP listener on port ", UDP_LISTENER_PORT)
+	debug_print("Started UDP listener on port " + str(UDP_LISTENER_PORT))
 
 func stop_udp_listener():
 	if udp_listener and udp_listener.is_bound():
 		udp_listener.close()
 		udp_listener = null
-	print("Stopped UDP listener")
+	debug_print("Stopped UDP listener")
 
 func _process(_delta):
 	processUdpListener()
@@ -482,10 +509,12 @@ func processTcpListener():
 		# Accept new TCP clients
 		if tcp_server.is_connection_available():
 			var client = tcp_server.take_connection()
-			tcp_clients.append(client)
-			print("Accepted new TCP client")
-			# Find which device connected based on IP
 			var client_ip = client.get_connected_host()
+			debug_print("TCP connection from: " + client_ip)
+
+			# Version check was already done during discovery
+			# If device is connecting, it means it was approved
+			tcp_clients.append(client)
 			_update_device_state_by_ip(client_ip, "Debugging")
 		
 		# Handle data from TCP clients and remove disconnected ones
@@ -493,33 +522,36 @@ func processTcpListener():
 		for i in range(tcp_clients.size()):
 			var client = tcp_clients[i]
 			var status = client.get_status()
-			
+
 			# Check if client is disconnected or has errors
 			if status != StreamPeerTCP.STATUS_CONNECTED:
 				clients_to_remove.append(i)
 				if status == StreamPeerTCP.STATUS_ERROR:
-					print("TCP client error detected")
+					debug_print("TCP client error detected")
 				elif status == StreamPeerTCP.STATUS_NONE:
-					print("TCP client disconnected")
+					debug_print("TCP client disconnected")
 				continue
-			
+
 			# Try to poll the connection to detect if it's still alive
 			client.poll()
-			
+
 			# Check for available data
 			if client.get_available_bytes() > 0:
 				var data = client.get_utf8_string(client.get_available_bytes())
 				if data == "":  # Empty data might indicate disconnection
 					clients_to_remove.append(i)
 					continue
-				
-				print("Received from TCP client: ", data)
-				# Check for stop game request
+
+				debug_print("Received from TCP client: " + data)
+
+				# Parse JSON message
 				var json_parser = JSON.new()
 				if json_parser.parse(data) == OK:
 					var msg = json_parser.get_data()
+
+					# Handle message types
 					if msg.has("messageType") and msg["messageType"] == "game_stopped":
-						print("Received stop game request. Stopping TCP server.")
+						debug_print("Received stop game request. Stopping TCP server.")
 						var client_ip = client.get_connected_host()
 						_update_device_state_by_ip(client_ip, "Idle")
 						stop_tcp_server()
@@ -529,7 +561,7 @@ func processTcpListener():
 			var idx = clients_to_remove[i]
 			var client = tcp_clients[idx]
 			var client_ip = client.get_connected_host()
-			print("Removing disconnected TCP client at index ", idx, " (IP: ", client_ip, ")")
+			debug_print("Removing disconnected TCP client at index " + str(idx) + " (IP: " + client_ip + ")")
 			# Update device state when client disconnects
 			_update_device_state_by_ip(client_ip, "Idle")
 			tcp_clients.remove_at(idx)
@@ -541,29 +573,107 @@ func process_udp_listener():
 			var sender = udp_listener.get_packet_ip()
 			var sender_port = udp_listener.get_packet_port()
 			var message = packet.get_string_from_utf8()
-			print("Received from ", sender, ":", sender_port, " - ", message)
+			debug_print("Received from " + sender + ":" + str(sender_port) + " - " + message)
 			if message == "ping":
 				var response = "pong".to_utf8_buffer()
 				udp_listener.set_dest_address(sender, sender_port)
 				udp_listener.put_packet(response)
-				print("Sent pong to ", sender, ":", sender_port)
+				debug_print("Sent pong to " + sender + ":" + str(sender_port))
 
 func add_device_to_ui(device_data: Dictionary):
 	var key = device_data["deviceId"]
 	# Add timestamp to device data for stale device removal
 	device_data["last_seen"] = Time.get_unix_time_from_system()
+
+	# Check if this is a new device or an update
+	var is_new_device = not discovered_devices.has(key)
+
+	# Preserve existing approval status if device already exists
+	if not is_new_device and discovered_devices.has(key):
+		var existing_device = discovered_devices[key]
+		if existing_device.has("versionApproved"):
+			device_data["versionApproved"] = existing_device["versionApproved"]
+
+	# Check Godot version compatibility
+	if device_data.has("godotVersion"):
+		var device_version = device_data["godotVersion"]
+		var editor_version = get_current_godot_version()
+		device_data["versionMatch"] = versions_match(device_version, editor_version)
+
+		# For new devices with version mismatch, check if we need to prompt
+		if is_new_device and not device_data["versionMatch"]:
+			# Check if this version was already approved or rejected
+			if approved_versions.has(device_version):
+				# Already approved - mark as approved
+				device_data["versionApproved"] = true
+				debug_print("✓ Device version %s already approved: %s" % [device_version, device_data.get("deviceName", key)])
+			elif rejected_versions.has(device_version):
+				# Already rejected - mark as rejected
+				device_data["versionApproved"] = false
+				debug_print("✗ Device version %s already rejected: %s" % [device_version, device_data.get("deviceName", key)])
+			else:
+				# First time seeing this version - show dialog
+				debug_print("⚠️ Version mismatch detected for device: " + device_data.get("deviceName", key))
+				debug_print("   Editor: " + editor_version + ", Device: " + device_version)
+
+				# Add to discovered devices immediately so it shows in UI
+				discovered_devices[key] = device_data
+				_refresh_device_list()
+
+				# Show dialog and store device ID for callback
+				current_version_prompt_device_id = key
+				var device_name = device_data.get("deviceName", "Unknown Device")
+				_show_version_mismatch_dialog(device_version, editor_version, device_name)
+				return  # Early return - don't sync to export platform yet
+		# For existing devices with version mismatch, ensure approval status is set from global lists
+		elif not is_new_device and not device_data["versionMatch"]:
+			if not device_data.has("versionApproved"):
+				# Check global approval/rejection lists
+				if approved_versions.has(device_version):
+					device_data["versionApproved"] = true
+				elif rejected_versions.has(device_version):
+					device_data["versionApproved"] = false
+
 	discovered_devices[key] = device_data
-	
-	print("Added device to UI: ", key, ", isManual: ", device_data.get("isManual", false))
-	
-	# Sync with export platform singleton
-	if export_platform:
-		export_platform.new_devices = discovered_devices.values()
-		# print("Discovered device: ", export_platform.new_devices)
-		export_platform.devicesUpdated = true
-		# print("Discovered devices: ", export_platform.new_devices)
+
+	if is_new_device:
+		debug_print("Added device to UI: " + device_data.get("deviceName", key) + ", isManual: " + str(device_data.get("isManual", false)))
+
+	# Sync with export platform singleton (only approved or matching devices)
+	_sync_devices_to_export_platform()
 
 	_refresh_device_list()
+
+func _sync_devices_to_export_platform():
+	# Only sync devices that are approved or have matching versions
+	if export_platform:
+		var approved_devices = []
+		for device in discovered_devices.values():
+			# Include device if:
+			# 1. Version matches exactly, OR
+			# 2. Version doesn't match but was approved by user
+			var include_device = false
+			var device_name = device.get("deviceName", "Unknown")
+			var has_version_match = device.get("versionMatch", true)
+			var has_version_approved = device.has("versionApproved") and device["versionApproved"]
+
+			if has_version_match:
+				# Version matches or no version info
+				include_device = true
+				debug_print("  ✓ Including %s (version matches)" % device_name)
+			elif has_version_approved:
+				# Version mismatch but user approved it
+				include_device = true
+				debug_print("  ✓ Including %s (version approved: %s)" % [device_name, device.get("godotVersion", "?")])
+			else:
+				debug_print("  ✗ Excluding %s (version rejected or pending)" % device_name)
+
+			if include_device:
+				approved_devices.append(device)
+
+		debug_print("Syncing %d devices to export platform" % approved_devices.size())
+		export_platform.new_devices = approved_devices
+		export_platform.devicesUpdated = true
 
 const DevicePanel = preload("res://addons/xogot_remote_debugger/device_panel.tscn")
 
@@ -577,11 +687,14 @@ func _refresh_device_list():
 			device_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			device_panel.set_device_data(device_data)
 			devices_vbox.add_child(device_panel)
-			
+
 			# Connect the device_removed signal for manual devices
 			if device_data.get("isManual", false):
 				device_panel.device_removed.connect(_on_manual_device_removed)
-			
+
+			# Connect the device_clicked signal for rejected devices
+			device_panel.device_clicked.connect(_on_device_clicked)
+
 			# Apply current state if exists
 			var device_id = device_data["deviceId"]
 			if device_states.has(device_id):
@@ -603,6 +716,14 @@ func _update_no_devices_help():
 		# Show remote debug instructions when we have devices
 		remote_debug_help.visible = isScanning and not discovered_devices.is_empty()
 
+func _get_device_by_ip(ip: String) -> Dictionary:
+	# Find and return device data by IP address
+	for device_id in discovered_devices.keys():
+		var device = discovered_devices[device_id]
+		if device.has("address") and device["address"] == ip:
+			return device
+	return {}
+
 func _update_device_state_by_ip(ip: String, state: String):
 	# Find device by IP address and update its state
 	for device_id in discovered_devices.keys():
@@ -610,9 +731,9 @@ func _update_device_state_by_ip(ip: String, state: String):
 		if device.has("address") and device["address"] == ip:
 			device_states[device_id] = state
 			_refresh_device_list()
-			print("Updated device state: ", device_id, " -> ", state)
+			debug_print("Updated device state: " + device_id + " -> " + state)
 			return
-	print("Could not find device with IP: ", ip)
+	debug_print("Could not find device with IP: " + ip)
 
 func _has_active_tcp_connection(device_ip: String) -> bool:
 	# Check if any TCP client is connected from this device IP
@@ -646,12 +767,12 @@ func _remove_stale_devices():
 				if device_ip != "" and _has_active_tcp_connection(device_ip):
 					# Only keep if we've seen the device recently (within 30 seconds)
 					if time_since_last_seen < 30:
-						print("Keeping device with active TCP connection: ", device_id, " (IP: ", device_ip, ")")
+						debug_print("Keeping device with active TCP connection: " + device_id + " (IP: " + device_ip + ")")
 						continue
 					else:
-						print("Removing device despite TCP connection - not seen for ", time_since_last_seen, " seconds")
+						debug_print("Removing device despite TCP connection - not seen for " + str(time_since_last_seen) + " seconds")
 				devices_to_remove.append(device_id)
-				print("Removing stale device: ", device_id, " (last seen ", time_since_last_seen, " seconds ago)")
+				debug_print("Removing stale device: " + device_id + " (last seen " + str(time_since_last_seen) + " seconds ago)")
 	
 	# Remove stale devices
 	for device_id in devices_to_remove:
@@ -686,11 +807,110 @@ func update_remote_host_if_needed():
 		var best_ip = "0.0.0.0"
 		settings.set_setting("network/debug/remote_host", best_ip)
 		# settings.save()
-		print("Updated remote host from ", current_host, " to ", best_ip)
+		debug_print("Updated remote host from " + current_host + " to " + best_ip)
 
 # Removed button functionality - devices are display only now
 # func _on_device_panel_button_pressed(device_id: String, action: String):
 # 	... (removed)
+
+func get_current_godot_version() -> String:
+	var version_info = Engine.get_version_info()
+	return "%d.%d.%d" % [version_info.major, version_info.minor, version_info.patch]
+
+func versions_match(version1: String, version2: String) -> bool:
+	# Compare major.minor.patch versions
+	return version1 == version2
+
+func _show_version_mismatch_dialog(client_version: String, editor_version: String, device_name: String):
+	if not version_dialog:
+		return
+
+	var message = "Godot version mismatch detected!\n\n"
+	message += "Device: %s\n" % device_name
+	message += "Editor Version: %s\n" % editor_version
+	message += "Device Version: %s\n\n" % client_version
+	message += "Connecting with different versions may cause unexpected behavior.\n"
+	message += "Do you want to allow devices with this version?"
+
+	version_dialog.dialog_text = message
+
+	# Disconnect previous signals
+	if version_dialog.confirmed.is_connected(_on_version_mismatch_confirmed):
+		version_dialog.confirmed.disconnect(_on_version_mismatch_confirmed)
+	if version_dialog.canceled.is_connected(_on_version_mismatch_canceled):
+		version_dialog.canceled.disconnect(_on_version_mismatch_canceled)
+
+	# Connect signals
+	version_dialog.confirmed.connect(_on_version_mismatch_confirmed.bind(client_version))
+	version_dialog.canceled.connect(_on_version_mismatch_canceled.bind(client_version))
+
+	version_dialog.popup_centered()
+
+func _on_version_mismatch_confirmed(device_version: String):
+	debug_print("User approved version: " + device_version)
+
+	# Add this version to approved list so we don't ask again
+	approved_versions[device_version] = true
+
+	# Remove from rejected list if it was there
+	if rejected_versions.has(device_version):
+		rejected_versions.erase(device_version)
+		debug_print("Removed version %s from rejected list" % device_version)
+
+	# Update the device that triggered this prompt
+	if current_version_prompt_device_id != "" and discovered_devices.has(current_version_prompt_device_id):
+		discovered_devices[current_version_prompt_device_id]["versionApproved"] = true
+		debug_print("Device %s marked as approved" % current_version_prompt_device_id)
+
+	# Update any other devices with the same version
+	var devices_updated = 0
+	for device_id in discovered_devices.keys():
+		var device = discovered_devices[device_id]
+		if device.has("godotVersion") and device["godotVersion"] == device_version:
+			device["versionApproved"] = true
+			devices_updated += 1
+
+	debug_print("Updated %d devices with version %s" % [devices_updated, device_version])
+
+	# Sync to export platform now that devices are approved
+	_sync_devices_to_export_platform()
+	_refresh_device_list()
+
+	current_version_prompt_device_id = ""
+
+	# Disconnect signals
+	if version_dialog.confirmed.is_connected(_on_version_mismatch_confirmed):
+		version_dialog.confirmed.disconnect(_on_version_mismatch_confirmed)
+	if version_dialog.canceled.is_connected(_on_version_mismatch_canceled):
+		version_dialog.canceled.disconnect(_on_version_mismatch_canceled)
+
+func _on_version_mismatch_canceled(device_version: String):
+	debug_print("User rejected version: " + device_version)
+
+	# Add this version to rejected list
+	rejected_versions[device_version] = true
+
+	# Update the device that triggered this prompt
+	if current_version_prompt_device_id != "" and discovered_devices.has(current_version_prompt_device_id):
+		discovered_devices[current_version_prompt_device_id]["versionApproved"] = false
+		debug_print("Device %s marked as rejected" % current_version_prompt_device_id)
+
+	# Update any other devices with the same version
+	for device_id in discovered_devices.keys():
+		var device = discovered_devices[device_id]
+		if device.has("godotVersion") and device["godotVersion"] == device_version:
+			device["versionApproved"] = false
+
+	# Refresh UI to show rejected state
+	_refresh_device_list()
+
+	current_version_prompt_device_id = ""
+
+	# Disconnect signals
+	if version_dialog.confirmed.is_connected(_on_version_mismatch_confirmed):
+		version_dialog.confirmed.disconnect(_on_version_mismatch_confirmed)
+	if version_dialog.canceled.is_connected(_on_version_mismatch_canceled):
+		version_dialog.canceled.disconnect(_on_version_mismatch_canceled)
 
 # --- Add a simple GUID generator ---
 func generate_guid() -> String:
@@ -718,7 +938,7 @@ func start_tcp_server():
 		_show_tcp_error("Port %d is already in use. Another instance of Xogot Remote Debugger may be running." % TCP_PORT)
 		return false
 	else:
-		print("TCP server listening on port ", TCP_PORT)
+		debug_print("TCP server listening on port " + str(TCP_PORT))
 		tcp_server_running = true
 		tcp_clients.clear()
 		_hide_tcp_error()
@@ -727,7 +947,7 @@ func start_tcp_server():
 func stop_tcp_server():
 	if not tcp_server_running:
 		return
-	print("Stopping TCP server")
+	debug_print("Stopping TCP server")
 	# Send end game response to all clients
 	var end_game_msg = {"messageType": "game_stopped"}
 	var json = JSON.stringify(end_game_msg)
@@ -779,7 +999,7 @@ func sendSyncRequest(target_address: String, target_port: int, project_name: Str
 	if sent != OK:
 		printerr("Failed to send sync request packet: ", sent)
 	else:
-		print("Sync request sent to %s:%s" % [target_address, str(target_port)])
+		debug_print("Sync request sent to %s:%s" % [target_address, str(target_port)])
 	udp.close()
 
 # Optionally, expose a manual stop function for UI or script
@@ -790,7 +1010,7 @@ func stop_remote_session():
 
 
 func _on_scan_button_pressed() -> void:
-	print("Scan button pressed")
+	debug_print("Scan button pressed")
 	
 	_update_file_server_warning()
 	
@@ -840,19 +1060,19 @@ func _on_scan_button_pressed() -> void:
 
 # Login-related button handlers
 func _on_email_login_button_pressed():
-	print("Email login button pressed")
+	debug_print("Email login button pressed")
 	show_email_login_panel()
 
 func _on_apple_login_button_pressed():
-	print("Apple login button pressed")
+	debug_print("Apple login button pressed")
 	show_apple_login_panel()
 
 func _on_email_back_button_pressed():
-	print("Email back button pressed")
+	debug_print("Email back button pressed")
 	show_login_panel()
 
 func _on_apple_back_button_pressed():
-	print("Apple back button pressed")  
+	debug_print("Apple back button pressed")
 	show_login_panel()
 
 func _on_email_input_text_changed(new_text: String):
@@ -861,7 +1081,7 @@ func _on_email_input_text_changed(new_text: String):
 func _on_send_code_button_pressed():
 	var email = email_input.text.strip_edges()
 	if email.length() > 0:
-		print("Sending verification code to: ", email)
+		debug_print("Sending verification code to: " + email)
 		pending_email = email
 		_request_verification_code(email)
 
@@ -871,17 +1091,17 @@ func _on_code_input_text_changed(new_text: String):
 func _on_verify_code_button_pressed():
 	var code = code_input.text.strip_edges()
 	if code.length() > 0:
-		print("Verifying code: ", code)
+		debug_print("Verifying code: " + code)
 		_verify_code(pending_email, code)
 
 func _on_resend_code_button_pressed():
-	print("Resending verification code")
+	debug_print("Resending verification code")
 	send_code_button.text = "Send Verification Code"
 	send_code_button.disabled = false
 	_on_send_code_button_pressed()
 
 func _on_launch_apple_browser_button_pressed():
-	print("Launching browser for Apple login")
+	debug_print("Launching browser for Apple login")
 	OS.shell_open(APPLE_LOGIN_URL)
 
 func _on_apple_api_key_input_text_changed(new_text: String):
@@ -890,7 +1110,7 @@ func _on_apple_api_key_input_text_changed(new_text: String):
 func _on_submit_apple_api_key_button_pressed():
 	var api_key = apple_api_key_input.text.strip_edges()
 	if api_key.length() > 0:
-		print("Submitting Apple API key: ", api_key)
+		debug_print("Submitting Apple API key: " + api_key)
 		authenticate_with_api_key(api_key)
 func verifyUserData(api_key: String):
 	# Make an API call to /api/GetUser with the api key in the header
@@ -912,7 +1132,7 @@ func verifyUserData(api_key: String):
 	# Make request
 	var error = http_request.request(url, headers, HTTPClient.METHOD_GET)
 	if error != OK:
-		print("Failed to make GetUser request: ", error)
+		debug_print("Failed to make GetUser request: " + str(error))
 		# Revert to not logged in state
 		is_logged_in = false
 		show_login_panel()
@@ -924,9 +1144,9 @@ func _on_get_user_completed(result: int, response_code: int, headers: PackedStri
 	if response_code == 200:
 		var json = JSON.new()
 		var jsonString = body.get_string_from_utf8()
-		print("GetUser response: ", jsonString)
+		debug_print("GetUser response: " + jsonString)
 		var parse_result = json.parse(jsonString)
-		
+
 		if parse_result == OK:
 			var user_data = json.data
 			# Update user data based on API response
@@ -937,20 +1157,20 @@ func _on_get_user_completed(result: int, response_code: int, headers: PackedStri
 				user.user_name = user_data["username"]
 			if user_data.has("email"):
 				user.email = user_data["email"]
-			
+
 			# Save updated user data
 			saveUser()
-			
+
 			# User is verified, proceed to scan panel
 			is_logged_in = true
 			show_scan_panel()
-			print("User verified successfully")
+			debug_print("User verified successfully")
 		else:
-			print("Failed to parse GetUser response")
+			debug_print("Failed to parse GetUser response")
 			is_logged_in = false
 			show_login_panel()
 	else:
-		print("GetUser request failed with status code: ", response_code)
+		debug_print("GetUser request failed with status code: " + str(response_code))
 		# Invalid API key or other error
 		user.api_key = ""
 		saveUser()
@@ -979,8 +1199,8 @@ func authenticate_with_api_key(api_key: String):
 	
 	# Show scan panel
 	show_scan_panel()
-	
-	print("Login successful with API key")
+
+	debug_print("Login successful with API key")
 
 
 func logout():
@@ -991,18 +1211,18 @@ func logout():
 	saveUser()
 	is_logged_in = false
 	show_login_panel()
-	print("Logged out")
+	debug_print("Logged out")
 
 func _on_continue_button_pressed():
-	print("Continue to devices")
+	debug_print("Continue to devices")
 	show_scan_panel()
 
 func _on_logout_button_pressed():
-	print("Logout button pressed")
+	debug_print("Logout button pressed")
 	logout()
 
 func _on_profile_button_pressed():
-	print("Profile button pressed")
+	debug_print("Profile button pressed")
 	show_profile_panel()
 	update_profile_display()
 
@@ -1042,7 +1262,7 @@ func _request_verification_code(email: String):
 	# Make request
 	var error = http_request.request(url, headers, HTTPClient.METHOD_POST, body)
 	if error != OK:
-		print("Failed to make request: ", error)
+		debug_print("Failed to make request: " + str(error))
 		_handle_request_code_error("Network error")
 
 func _on_request_code_completed(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray):
@@ -1052,7 +1272,7 @@ func _on_request_code_completed(result: int, response_code: int, headers: Packed
 	if response_code == 200:
 		var response_text = body.get_string_from_utf8()
 		if response_text == "Pin Sent":
-			print("Verification code sent successfully")
+			debug_print("Verification code sent successfully")
 			# Show verification panel
 			verification_panel.visible = true
 			send_code_button.text = "Code Sent"
@@ -1063,7 +1283,7 @@ func _on_request_code_completed(result: int, response_code: int, headers: Packed
 		_handle_request_code_error("Failed to send code (HTTP " + str(response_code) + ")")
 
 func _handle_request_code_error(error_msg: String):
-	print("Error requesting verification code: ", error_msg)
+	debug_print("Error requesting verification code: " + error_msg)
 	send_code_button.text = "Send Verification Code"
 	send_code_button.disabled = false
 	# TODO: Show error message to user
@@ -1098,7 +1318,7 @@ func _verify_code(email: String, code: String):
 	# Make request
 	var error = http_request.request(url, headers, HTTPClient.METHOD_POST, body)
 	if error != OK:
-		print("Failed to make request: ", error)
+		debug_print("Failed to make request: " + str(error))
 		_handle_verify_code_error("Network error")
 
 func _on_verify_code_completed(result: int, response_code: int, headers: PackedStringArray, body: PackedByteArray):
@@ -1108,13 +1328,13 @@ func _on_verify_code_completed(result: int, response_code: int, headers: PackedS
 	if response_code == 200:
 		var json = JSON.new()
 		var jsonString = body.get_string_from_utf8()
-		print(jsonString)
+		debug_print(jsonString)
 		var parse_result = json.parse(jsonString)
-		
+
 		if parse_result == OK:
 			var response = json.data
 			if response.has("apiKey") and response.has("user"):
-				print("Code verified successfully")
+				debug_print("Code verified successfully")
 				# Store user information
 				var user_data = response["user"]
 				user.user_id = user_data["id"]
@@ -1131,7 +1351,7 @@ func _on_verify_code_completed(result: int, response_code: int, headers: PackedS
 		_handle_verify_code_error("Failed to verify code (HTTP " + str(response_code) + ")")
 
 func _handle_verify_code_error(error_msg: String):
-	print("Error verifying code: ", error_msg)
+	debug_print("Error verifying code: " + error_msg)
 	verify_code_button.text = "Verify Code"
 	verify_code_button.disabled = false
 	# TODO: Show error message to user
@@ -1192,14 +1412,34 @@ func _on_add_device_button_pressed():
 	
 	# Add the device using the existing add_device_to_ui function
 	add_device_to_ui(device_data)
-	
+
 	# Clear the input fields after adding
 	ip_input.text = ""
 	port_input.text = "9986"
 	name_input.text = ""
 	_validate_manual_add_inputs()
-	
-	print("Manually added device: %s at %s:%d" % [device_name, ip_address, port])
+
+	debug_print("Manually added device: %s at %s:%d" % [device_name, ip_address, port])
+
+func _on_device_clicked(device_id: String, godot_version: String):
+	debug_print("Clicked on rejected device: " + device_id + ", version: " + godot_version)
+
+	# Get device data for the dialog
+	if not discovered_devices.has(device_id):
+		return
+
+	var device_data = discovered_devices[device_id]
+	var device_name = device_data.get("deviceName", "Unknown Device")
+	var editor_version = get_current_godot_version()
+
+	# Remove from rejected list so we can re-prompt
+	rejected_versions.erase(godot_version)
+
+	# Store current device for callback
+	current_version_prompt_device_id = device_id
+
+	# Show the dialog again
+	_show_version_mismatch_dialog(godot_version, editor_version, device_name)
 
 func _on_manual_device_removed(device_id: String):
 	if discovered_devices.has(device_id):
@@ -1207,7 +1447,7 @@ func _on_manual_device_removed(device_id: String):
 		if device_states.has(device_id):
 			device_states.erase(device_id)
 		_refresh_device_list()
-		print("Removed manual device: ", device_id)
+		debug_print("Removed manual device: " + device_id)
 
 func _on_add_manual_device_button_pressed():
 	if manual_add_container:

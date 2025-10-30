@@ -1,12 +1,16 @@
 @tool
 extends Panel
 
+const XogotDebug = preload("res://addons/xogot_remote_debugger/xogot_debug.gd")
+
 # Device data
 var device_id: String
 var currentText: String
 var current_state: String = "Idle"
 var is_manual: bool = false
 var pending_device_data: Dictionary = {}
+var is_version_rejected: bool = false
+var device_godot_version: String = ""
 
 # Node references
 @onready var device_label: Label = $HBoxContainer/DeviceLabel
@@ -14,6 +18,7 @@ var pending_device_data: Dictionary = {}
 @onready var remove_button: Button = %RemoveButton
 
 signal device_removed(device_id: String)
+signal device_clicked(device_id: String, godot_version: String)
 
 func _ready():
 	# Connect to label's resized signal to adjust panel height
@@ -45,28 +50,46 @@ func _update_ui():
 func set_device_data(device_data: Dictionary):
 	device_id = device_data["deviceId"]
 	is_manual = device_data.get("isManual", false)
-	
-	print("Setting device data for: ", device_id, ", isManual: ", is_manual)
-	
+	device_godot_version = device_data.get("godotVersion", "")
+
+	# Check if this device's version was rejected
+	is_version_rejected = device_data.has("versionApproved") and not device_data["versionApproved"]
+
+	if XogotDebug.ENABLED:
+		print("Setting device data for: ", device_id, ", isManual: ", is_manual, ", rejected: ", is_version_rejected)
+
 	var device_text = "%s (%s)" % [
 		device_data.get("deviceName", "Unknown Device"),
 		device_data.get("address", "?")
 	]
+
+	# Add rejection indicator to text
+	if is_version_rejected:
+		device_text += " [Version Rejected]"
+
 	currentText = device_text
-	
+
 	# Set tooltip text
 	if device_label:
-		device_label.tooltip_text = "Type: %s, Version: %s" % [
+		var tooltip = "Type: %s, Version: %s" % [
 			device_data.get("serviceType", "?"),
 			device_data.get("appVersion", "?")
 		]
-	
+		if is_version_rejected:
+			tooltip += "\n⚠️ Click to re-enable this version"
+		device_label.tooltip_text = tooltip
+
 	# Update the UI
 	_update_ui()
 
 func update_state(state: String):
 	current_state = state
-	
+
+	# If version is rejected, override state with rejected color
+	if is_version_rejected:
+		state_indicator.color = Color.ORANGE_RED
+		return
+
 	# Update visual indicators based on state
 	match state:
 		"Idle":
@@ -79,6 +102,16 @@ func update_state(state: String):
 			state_indicator.color = Color.CYAN
 		"Error":
 			state_indicator.color = Color.RED
+		"Awaiting Confirmation...":
+			state_indicator.color = Color.YELLOW
+
+func _gui_input(event: InputEvent):
+	if event is InputEventMouseButton:
+		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			# Only emit click signal if device is rejected
+			if is_version_rejected:
+				device_clicked.emit(device_id, device_godot_version)
+				accept_event()
 
 func _on_remove_pressed():
 	device_removed.emit(device_id)
