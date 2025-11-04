@@ -1,4 +1,4 @@
-# Xogot Remote Debugger
+# Xogot Connect
 
 A Godot addon that enables remote deployment and debugging of your Godot projects on iOS devices using the [Xogot](https://apps.apple.com/us/app/xogot-make-games-anywhere/id6469385251) app.
 
@@ -10,19 +10,19 @@ A Godot addon that enables remote deployment and debugging of your Godot project
 
 ## Installation
 
-1. Copy the `xogot_remote_debugger` folder into your project's `addons` folder:
+1. Copy the `xogot_connect` folder into your project's `addons` folder:
 
    ```
    your_project/
    └── addons/
-       └── xogot_remote_debugger/
+       └── xogot_connect/
    ```
 
 
 2. Enable the addon in Godot:
 - Open your project in Godot.
 - Go to **Project Settings** → **Plugins**.
-- Find **Xogot Remote Debugger** in the list.
+- Find **Xogot Connect** in the list.
 - Check the box to enable it.
 
 ## Usage
@@ -76,4 +76,4 @@ This setting lets you test games with touch-based virtual controls when running 
 ## About Xogot
 
 [Xogot](https://xogot.com) lets you make games anywhere—on iPad and iPhone—with a native touch-first editor built on the Godot Engine.  
-The Xogot Remote Debugger addon connects the desktop Godot editor with Xogot, enabling you to **deploy, debug, and test your games on real iOS devices**.
+The Xogot Connect addon connects the desktop Godot editor with Xogot, enabling you to **deploy, debug, and test your games on real iOS devices**.

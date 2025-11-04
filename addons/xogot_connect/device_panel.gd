@@ -1,7 +1,7 @@
 @tool
 extends Panel
 
-const XogotDebug = preload("res://addons/xogot_remote_debugger/xogot_debug.gd")
+const XogotDebug = preload("res://addons/xogot_connect/xogot_debug.gd")
 
 # Device data
 var device_id: String

@@ -1,7 +1,7 @@
 [gd_scene load_steps=9 format=3 uid="uid://bf40cahvr6rcd"]
 
-[ext_resource type="Script" uid="uid://dgrnafxy4fk26" path="res://addons/xogot_remote_debugger/xogot.gd" id="1_u0s5b"]
-[ext_resource type="Texture2D" uid="uid://cw3ci5a3wkm6u" path="res://addons/xogot_remote_debugger/resources/remoteDebugButton.png" id="2_remote_debug_button"]
+[ext_resource type="Script" uid="uid://dgrnafxy4fk26" path="res://addons/xogot_connect/xogot.gd" id="1_u0s5b"]
+[ext_resource type="Texture2D" uid="uid://cw3ci5a3wkm6u" path="res://addons/xogot_connect/resources/remoteDebugButton.png" id="2_remote_debug_button"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_apple_hover"]
 content_margin_left = 12.0

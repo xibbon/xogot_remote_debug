@@ -10,7 +10,7 @@ metadata={
 
 [deps]
 
-source_file="res://addons/xogot_remote_debugger/resources/iosLogo.svg"
+source_file="res://addons/xogot_connect/resources/iosLogo.svg"
 dest_files=["res://.godot/imported/iosLogo.svg-941fdf09e69ce0ebe038024f0b8eefd0.ctex"]
 
 [params]

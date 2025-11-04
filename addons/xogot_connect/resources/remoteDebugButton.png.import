@@ -10,7 +10,7 @@ metadata={
 
 [deps]
 
-source_file="res://addons/xogot_remote_debugger/resources/remoteDebugButton.png"
+source_file="res://addons/xogot_connect/resources/remoteDebugButton.png"
 dest_files=["res://.godot/imported/remoteDebugButton.png-8db980f49a7d985d3ab463caa9b0e701.ctex"]
 
 [params]

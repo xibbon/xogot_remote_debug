@@ -12,13 +12,13 @@ func _enter_tree():
 	# Configure iOS virtual controller settings
 	_configure_ios_virtual_controller()
 
-	xogot_export_platform = preload("res://addons/xogot_remote_debugger/xogot_export_platform.gd").new()
+	xogot_export_platform = preload("res://addons/xogot_connect/xogot_export_platform.gd").new()
 	add_export_platform(xogot_export_platform)
 	Engine.register_singleton("XogotExportPlatform", xogot_export_platform)
 	# EditorExport.singleton.add_platform(xogot_export_platform)
 	# Initialization of the plugin goes here.
 	# Load the dock scene and instantiate it.
-	dock = preload("res://addons/xogot_remote_debugger/xogot.tscn").instantiate()
+	dock = preload("res://addons/xogot_connect/xogot.tscn").instantiate()
 	dock.export_platform = xogot_export_platform
 	dock.plugin = self
 

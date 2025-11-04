@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://g4m35ps5txfm"]
 
-[ext_resource type="Script" uid="uid://ccdvyocb41wl5" path="res://addons/xogot_remote_debugger/device_panel.gd" id="1_device"]
+[ext_resource type="Script" uid="uid://ccdvyocb41wl5" path="res://addons/xogot_connect/device_panel.gd" id="1_device"]
 
 [node name="DevicePanel" type="Panel"]
 custom_minimum_size = Vector2(300, 60)

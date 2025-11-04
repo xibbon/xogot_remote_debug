@@ -15,7 +15,7 @@ var xogot_instance = null
 func loadImages() -> void:
 	if iosLogo:
 		return # Already loaded
-	var iosImage = Image.load_from_file("res://addons/xogot_remote_debugger/resources/iosLogo.svg")
+	var iosImage = Image.load_from_file("res://addons/xogot_connect/resources/iosLogo.svg")
 	iosLogo = ImageTexture.create_from_image(iosImage)
 
 func _get_name() -> String:
