@@ -207,10 +207,10 @@ func show_login_panel():
 func show_scan_panel():
 	login_panel.visible = false
 	scan_panel.visible = true
-	
-	# Hide manual add button initially (only show when scanning is enabled)
+
+	# Show manual add button if already scanning, otherwise hide it
 	if add_manual_device_button:
-		add_manual_device_button.visible = false
+		add_manual_device_button.visible = isScanning
 	if manual_add_container:
 		manual_add_container.visible = false
 	# Hide help text initially
@@ -1044,17 +1044,24 @@ func _on_scan_button_pressed() -> void:
 		stop_scanning()
 		stop_tcp_server()
 		stop_udp_listener()
-		%ScanButton.text = "Enable"
+		%ScanButton.text = "Search Peer Devices"
 		isScanning = false
 		_hide_tcp_error()
-		
+
+		# Clear only the remote debug device list (not discovered_devices)
+		# This removes approved devices from remote debugging but keeps them stored
+		# so manual devices will reappear when scanning is re-enabled
+		if export_platform:
+			export_platform.new_devices = []
+			export_platform.devicesUpdated = true
+
 		# Hide manual add button when scanning is disabled
 		if add_manual_device_button:
 			add_manual_device_button.visible = false
 		# Also hide the manual add container if it's visible
 		if manual_add_container:
 			manual_add_container.visible = false
-		
+
 		# Update help text visibility
 		_update_no_devices_help()
 		
@@ -1067,7 +1074,7 @@ func _on_scan_button_pressed() -> void:
 		start_scanning()
 		if start_tcp_server():
 			isScanning = true
-			%ScanButton.text = "Disable"
+			%ScanButton.text = "Stop Search"
 			
 			# Show manual add button when scanning is enabled
 			if add_manual_device_button:
