@@ -69,9 +69,38 @@ func _get_option_icon(deviceIndex: int) -> ImageTexture:
 	loadImages()
 	return iosLogo;
 
+# Validate that all required settings are configured
+func _validate_setup() -> String:
+	var settings = EditorInterface.get_editor_settings()
+
+	# Check if file server is enabled
+	var file_server_enabled = settings.get_project_metadata("debug_options", "run_file_server", false)
+	if not file_server_enabled:
+		return "Small Deploy with Network Filesystem is not enabled. Enable it in the menu Debug → Small Deploy with Network Filesystem."
+
+	# Check if remote host is localhost and auto-fix it
+	var remote_host = settings.get_setting("network/debug/remote_host")
+	if remote_host == "127.0.0.1" or remote_host == "localhost":
+		print("Xogot: Automatically updating remote host from ", remote_host, " to 0.0.0.0")
+		settings.set_setting("network/debug/remote_host", "0.0.0.0")
+
+	# Check if remote debug is enabled
+	var remote_debug_enabled = settings.get_project_metadata("debug_options", "run_deploy_remote_debug", true)
+	if not remote_debug_enabled:
+		return "Deploy with Remote Debug. Enable it in the menu Debug → Deploy with Remote Debug."
+
+	return ""  # No errors
+
 func _run(preset: EditorExportPreset, device: int, debug_flags: int) -> Error:
 	# print("XogotExportPlatform: _run_on_target called for target: ", device)
-	
+
+	# Validate setup before running
+	var validation_error = _validate_setup()
+	if validation_error != "":
+		# printerr("Xogot setup validation failed: ", validation_error)
+		push_error("Xogot Connect Remote Debugger setup error: " + validation_error)
+		return ERR_UNCONFIGURED
+
 	# Find the device from the target string
 	var device_data = discovered_devices[device]
 	if not device_data:
