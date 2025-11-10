@@ -4,7 +4,7 @@ extends Control
 const XogotDebug = preload("res://addons/xogot_connect/xogot_debug.gd")
 
 # Plugin version
-const PLUGIN_VERSION = "1.0.0"
+const PLUGIN_VERSION = "1.0.1"
 
 var FILE_NAME: String:
 	get:
