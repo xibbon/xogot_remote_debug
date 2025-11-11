@@ -1496,6 +1496,7 @@ func _create_update_notification_ui():
 	# Create a panel container for the update notification
 	update_notification_panel = PanelContainer.new()
 	update_notification_panel.visible = false
+	update_notification_panel.custom_minimum_size = Vector2(0, 44)
 
 	# Add some styling
 	var style = StyleBoxFlat.new()
@@ -1503,35 +1504,60 @@ func _create_update_notification_ui():
 	style.set_corner_radius_all(5)
 	style.content_margin_left = 10
 	style.content_margin_right = 10
-	style.content_margin_top = 5
-	style.content_margin_bottom = 5
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
 	update_notification_panel.add_theme_stylebox_override("panel", style)
 
 	# Create an HBoxContainer to hold label and button
 	var hbox = HBoxContainer.new()
+	hbox.add_theme_constant_override("separation", 10)
 	update_notification_panel.add_child(hbox)
 
 	# Create label
 	update_notification_label = Label.new()
 	update_notification_label.text = "Update available!"
 	update_notification_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	update_notification_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	update_notification_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	hbox.add_child(update_notification_label)
 
 	# Create download button
 	update_download_button = Button.new()
 	update_download_button.text = "Download"
+	update_download_button.custom_minimum_size = Vector2(100, 0)
+	update_download_button.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	update_download_button.pressed.connect(_on_update_download_pressed)
 	hbox.add_child(update_download_button)
 
-	# Add to scan panel at the top
+	# Add to the VBoxContainer inside scan_panel, not to scan_panel itself
+	# scan_panel is a MarginContainer which can only have one child (the VBoxContainer)
 	if scan_panel:
-		scan_panel.add_child(update_notification_panel)
-		scan_panel.move_child(update_notification_panel, 0)  # Move to top
+		var vbox = scan_panel.get_child(0)  # Get the VBoxContainer inside MarginContainer
+		if vbox:
+			vbox.add_child(update_notification_panel)
+			vbox.move_child(update_notification_panel, 0)  # Move to top
+
+		# Add a spacer after the update notification
+		var spacer = Control.new()
+		spacer.custom_minimum_size = Vector2(0, 10)
+		spacer.name = "UpdateNotificationSpacer"
+		spacer.visible = false  # Hidden by default
+		if vbox:
+			vbox.add_child(spacer)
+			vbox.move_child(spacer, 1)  # Right after the update panel
 
 func _show_update_notification():
 	if update_notification_panel and update_available:
 		update_notification_label.text = "Update available: v%s - %s" % [latest_version, update_description]
 		update_notification_panel.visible = true
+
+		# Also show the spacer if it exists
+		if scan_panel:
+			var vbox = scan_panel.get_child(0)
+			if vbox:
+				var spacer = vbox.get_node_or_null("UpdateNotificationSpacer")
+				if spacer:
+					spacer.visible = true
 
 func _on_update_download_pressed():
 	if download_url != "":
