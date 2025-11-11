@@ -25,6 +25,9 @@ A Godot addon that enables remote deployment and debugging of your Godot project
 - Find **Xogot Connect** in the list.
 - Check the box to enable it.
 
+<img width="582" height="210" alt="image" src="https://github.com/user-attachments/assets/31a7b3a5-e609-44c8-be3f-c247fbf69856" />
+
+
 ## Usage
 
 Once the plugin is enabled, it adds a new **Xogot** pane on the right side of the Godot editor—next to **Inspector**, **Node**, and **History**.
