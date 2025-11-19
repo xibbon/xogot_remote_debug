@@ -2,6 +2,8 @@
 extends EditorExportPlatformExtension
 class_name XogotExportPlatform
 
+const XogotDebug = preload("res://addons/xogot_connect/xogot_debug.gd")
+
 # Holds the list of discovered devices (should be updated externally)
 var discovered_devices: Array = []
 var new_devices: Array = []
@@ -10,7 +12,11 @@ var iosLogo: ImageTexture
 
 # Reference to the xogot instance for sending sync requests
 var xogot_instance = null
-# var iosLogo = ImageLoaderSVG.load_from_string(iosLogoString)
+
+func debug_print(message: String) -> void:
+	if XogotDebug.ENABLED:
+		print(message)
+
 # --- EditorExportPlatformExtension required overrides (stubs) ---
 func loadImages() -> void:
 	if iosLogo:
@@ -27,27 +33,27 @@ func _get_logo() -> Texture2D:
 	return iosLogo
 
 func _get_supported_features() -> PackedStringArray:
-	print("XogotExportPlatform: _get_supported_features called")
+	debug_print("XogotExportPlatform: _get_supported_features called")
 	return ["remote"]
 
 func _get_export_file_extension(preset: EditorExportPreset) -> String:
-	print("XogotExportPlatform: _get_export_file_extension called")
+	debug_print("XogotExportPlatform: _get_export_file_extension called")
 	return "zip"
 
 func _get_binary_extensions(preset: EditorExportPreset) -> PackedStringArray:
-	print("XogotExportPlatform: _get_binary_extensions called")
+	debug_print("XogotExportPlatform: _get_binary_extensions called")
 	return ["zip"]
 
 func _has_valid_export_configuration(preset: EditorExportPreset, debug: bool) -> bool:
-	print("XogotExportPlatform: _has_valid_export_configuration called")
+	debug_print("XogotExportPlatform: _has_valid_export_configuration called")
 	return true
 
 func _get_platform_features() -> PackedStringArray:
-	print("XogotExportPlatform: _get_platform_features called")
+	debug_print("XogotExportPlatform: _get_platform_features called")
 	return ["xogot", "remote"]
 
 func _get_preset_features(preset: EditorExportPreset) -> PackedStringArray:
-	print("XogotExportPlatform: _get_preset_features called")
+	debug_print("XogotExportPlatform: _get_preset_features called")
 	return ["remote"]
 
 func _get_options_count() -> int:
@@ -115,15 +121,14 @@ func _run(preset: EditorExportPreset, device: int, debug_flags: int) -> Error:
 	var settings = EditorInterface.get_editor_settings()
 	var host: String = settings.get_setting("network/debug/remote_host")
 	var remotePort: int = settings.get_setting("network/debug/remote_port")
-	var protocol = "tcp://" #_get_debug_protocol()
-	# var p2 = _get_debug_protocol()
+	var protocol = "tcp://"
 	var fsPort = settings.get_setting("filesystem/file_server/port")
-	print("XogotExportPlatform: _run_on_target called with host: %s, port: %d, protocol: %s" % [host, remotePort, protocol])
-	print("XogotExportPlatform: fsPort: ", fsPort)
+	debug_print("XogotExportPlatform: _run_on_target called with host: %s, port: %d, protocol: %s" % [host, remotePort, protocol])
+	debug_print("XogotExportPlatform: fsPort: %s" % fsPort)
 	# Get game arguments from preset or debug flags
 	var game_args = []
 	var dumbDeploy = debug_flags & EditorExportPlatform.DEBUG_FLAG_DUMB_CLIENT
-	print("Dumb Deploy: ", dumbDeploy)
+	debug_print("Dumb Deploy: %s" % dumbDeploy)
 
 	# Always enable remote debugging for Xogot deployments
 	# if debug_flags & EditorExportPlatform.DEBUG_FLAG_REMOTE_DEBUG:
@@ -152,9 +157,9 @@ func _run(preset: EditorExportPreset, device: int, debug_flags: int) -> Error:
 		var sender_port = xogot_instance.TCP_PORT
 		var sync_type = "remotefs"
 
-		print("XogotExportPlatform: Sending sync request to %s:%d with args: %s" % [target_address, target_port, game_args])
+		debug_print("Sending sync request to %s:%d with args: %s" % [target_address, target_port, game_args])
 		xogot_instance.sendSyncRequest(target_address, target_port, project_name, project_path, user_id, public_ips, sender_port, game_args, sync_type)
-		print("Sync request sent to device: ", device_data["deviceName"])
+		print("Sync request sent to device: %s" % device_data["deviceName"])
 	else:
 		printerr("Xogot instance not available")
 		return ERR_UNAVAILABLE
@@ -167,19 +172,19 @@ func _get_run_icon() -> Texture2D:
 	return null
 
 func _get_custom_export_options(preset: EditorExportPreset) -> Array:
-	print("XogotExportPlatform: _get_custom_export_options called")
+	debug_print("XogotExportPlatform: _get_custom_export_options called")
 	return []
 
 func _get_os_name() -> String:
-	print("XogotExportPlatform: _get_os_name called")
+	debug_print("XogotExportPlatform: _get_os_name called")
 	return "Xogot"
 
 func _is_platform_supported() -> bool:
-	print("XogotExportPlatform: _is_platform_supported called")
+	debug_print("XogotExportPlatform: _is_platform_supported called")
 	return true
 
 func _export_project( preset: EditorExportPreset, debug: bool, path: String, flags: int )-> int:
-	print("XogotExportPlatform: _export_project called")
+	debug_print("XogotExportPlatform: _export_project called")
 	# Stub: implement export logic if needed
 	return OK
 
@@ -198,15 +203,15 @@ func _poll_export() -> bool:
 	return false
 
 func _get_export_option_visibility(preset: EditorExportPreset, option: String) -> bool:
-	print("XogotExportPlatform: _get_export_option_visibility called for option: ", option)
+	debug_print("XogotExportPlatform: _get_export_option_visibility called for option: %s" % option)
 	return true
 
 func _has_valid_project_configuration(preset: EditorExportPreset) -> bool:
-	print("XogotExportPlatform: _has_valid_project_configuration called")
+	debug_print("XogotExportPlatform: _has_valid_project_configuration called")
 	return true
 
 func _get_run_targets(preset: EditorExportPreset) -> Array:
-	print("XogotExportPlatform: _get_run_targets called")
+	debug_print("XogotExportPlatform: _get_run_targets called")
 	var targets = []
 	for device in discovered_devices:
 		if device.has("deviceName"):
@@ -216,7 +221,7 @@ func _get_run_targets(preset: EditorExportPreset) -> Array:
 	return targets
 
 func _get_run_target_label(preset: EditorExportPreset, target: String) -> String:
-	print("XogotExportPlatform: _get_run_target_label called for target: ", target)
+	debug_print("XogotExportPlatform: _get_run_target_label called for target: %s" % target)
 	return target
 
 # func _run_on_target(preset: EditorExportPreset, target: String, debug_flags: int) -> int:

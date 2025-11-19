@@ -9,6 +9,7 @@ extends RefCounted
 ## - Pairing status validation
 ## - Device pairing and unpairing operations
 
+const XogotDebug = preload("res://addons/xogot_connect/xogot_debug.gd")
 const PAIRED_DEVICES_KEY = "xogot.paired_devices"
 
 ## Dictionary of paired devices: device_id -> PairedDevice
@@ -35,6 +36,10 @@ class PairedDevice:
 func _init():
 	load_paired_devices()
 
+func debug_print(message: String) -> void:
+	if XogotDebug.ENABLED:
+		print(message)
+
 ## Load paired devices from persistent storage
 func load_paired_devices() -> void:
 	var config = ConfigFile.new()
@@ -47,9 +52,9 @@ func load_paired_devices() -> void:
 			device.device_name = config.get_value(device_id, "device_name", "")
 			device.paired_at = config.get_value(device_id, "paired_at", 0)
 			paired_devices[device_id] = device
-		print("[PairingManager] Loaded %d paired devices" % paired_devices.size())
+		debug_print("[PairingManager] Loaded %d paired devices" % paired_devices.size())
 	else:
-		print("[PairingManager] No paired devices found")
+		debug_print("[PairingManager] No paired devices found")
 
 ## Save paired devices to persistent storage
 func save_paired_devices() -> void:
@@ -59,7 +64,7 @@ func save_paired_devices() -> void:
 		config.set_value(device_id, "device_name", device.device_name)
 		config.set_value(device_id, "paired_at", device.paired_at)
 	config.save("user://paired_devices.cfg")
-	print("[PairingManager] Saved %d paired devices" % paired_devices.size())
+	debug_print("[PairingManager] Saved %d paired devices" % paired_devices.size())
 
 ## Check if a device is already paired
 func is_paired(device_id: String) -> bool:
@@ -73,13 +78,13 @@ func add_paired_device(device_id: String, device_name: String) -> void:
 	device.paired_at = Time.get_unix_time_from_system()
 	paired_devices[device_id] = device
 	save_paired_devices()
-	print("[PairingManager] Added paired device: %s (%s)" % [device_name, device_id])
+	debug_print("[PairingManager] Added paired device: %s (%s)" % [device_name, device_id])
 
 ## Remove a paired device
 func unpair_device(device_id: String) -> void:
 	if paired_devices.erase(device_id):
 		save_paired_devices()
-		print("[PairingManager] Unpaired device: %s" % device_id)
+		debug_print("[PairingManager] Unpaired device: %s" % device_id)
 
 ## Get all paired devices
 func get_paired_devices() -> Array:

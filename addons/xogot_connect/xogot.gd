@@ -575,7 +575,7 @@ func processTcpListener():
 			# Check for available data
 			if client.get_available_bytes() > 0:
 				var available_bytes = client.get_available_bytes()
-				print("[TCP] Available bytes: %d" % available_bytes)
+				debug_print("[TCP] Available bytes: %d" % available_bytes)
 
 				# Read raw bytes first
 				var raw_bytes = client.get_data(available_bytes)
@@ -585,47 +585,46 @@ func processTcpListener():
 					continue
 
 				var packet_data = raw_bytes[1]
-				print("[TCP] Raw packet size: %d bytes" % packet_data.size())
+				debug_print("[TCP] Raw packet size: %d bytes" % packet_data.size())
 
 				# Check if data is length-prefixed (first 4 bytes = UInt32 length)
 				var data: String = ""
 				if packet_data.size() >= 4:
 					# Try to read length prefix (big-endian UInt32)
 					var length_prefix = (packet_data[0] << 24) | (packet_data[1] << 16) | (packet_data[2] << 8) | packet_data[3]
-					print("[TCP] Potential length prefix (big-endian): %d" % length_prefix)
+					debug_print("[TCP] Potential length prefix (big-endian): %d" % length_prefix)
 
 					# Check if this looks like a length prefix
 					if length_prefix > 0 and length_prefix < 1000000 and packet_data.size() >= (4 + length_prefix):
 						# Data appears to be length-prefixed
-						print("[TCP] Data appears to be length-prefixed, extracting JSON...")
+						debug_print("[TCP] Data appears to be length-prefixed, extracting JSON...")
 						var json_bytes = packet_data.slice(4, 4 + length_prefix)
 						data = json_bytes.get_string_from_utf8()
-						print("[TCP] Extracted data length: %d" % data.length())
+						debug_print("[TCP] Extracted data length: %d" % data.length())
 					else:
 						# Try little-endian
 						var length_prefix_le = packet_data[0] | (packet_data[1] << 8) | (packet_data[2] << 16) | (packet_data[3] << 24)
-						print("[TCP] Potential length prefix (little-endian): %d" % length_prefix_le)
+						debug_print("[TCP] Potential length prefix (little-endian): %d" % length_prefix_le)
 
 						if length_prefix_le > 0 and length_prefix_le < 1000000 and packet_data.size() >= (4 + length_prefix_le):
-							print("[TCP] Data appears to be length-prefixed (little-endian), extracting JSON...")
+							debug_print("[TCP] Data appears to be length-prefixed (little-endian), extracting JSON...")
 							var json_bytes = packet_data.slice(4, 4 + length_prefix_le)
 							data = json_bytes.get_string_from_utf8()
-							print("[TCP] Extracted data length: %d" % data.length())
+							debug_print("[TCP] Extracted data length: %d" % data.length())
 						else:
 							# Not length-prefixed, read as raw string
-							print("[TCP] No valid length prefix found, reading as raw UTF-8...")
+							debug_print("[TCP] No valid length prefix found, reading as raw UTF-8...")
 							data = packet_data.get_string_from_utf8()
 				else:
 					# Packet too small for length prefix
-					print("[TCP] Packet too small for length prefix, reading as raw UTF-8...")
+					debug_print("[TCP] Packet too small for length prefix, reading as raw UTF-8...")
 					data = packet_data.get_string_from_utf8()
 
-				print("[TCP] Final data length: %d" % data.length())
-				print("[TCP] Final data: %s" % data)
+				debug_print("[TCP] Final data: %s" % data)
 
 				if data == "":  # Empty data might indicate disconnection
 					printerr("[TCP] Empty data received (could not decode UTF-8), marking client for removal")
-					printerr("[TCP] Raw bytes (first 32): %s" % packet_data.slice(0, min(32, packet_data.size())))
+					debug_print("[TCP] Raw bytes (first 32): %s" % packet_data.slice(0, min(32, packet_data.size())))
 					clients_to_remove.append(i)
 					continue
 
@@ -634,28 +633,67 @@ func processTcpListener():
 				# Parse JSON message
 				var json_parser = JSON.new()
 				var parse_result = json_parser.parse(data)
-				print("[TCP] JSON parse result: %d" % parse_result)
+				debug_print("[TCP] JSON parse result: %d" % parse_result)
 
 				if parse_result == OK:
 					var msg = json_parser.get_data()
-					print("[TCP] Parsed message: %s" % str(msg))
+					debug_print("[TCP] Parsed message: %s" % str(msg))
 
 					# Handle message types
 					var message_type = msg.get("messageType", "")
-					print("[TCP] Message type: %s" % message_type)
+					debug_print("[TCP] Message type: %s" % message_type)
 
 					match message_type:
-						"game_stopped":
-							debug_print("Received stop game request. Stopping TCP server.")
+						"request":
+							debug_print("[TCP] Received sync request from client")
+
+						"cancel":
 							var client_ip = client.get_connected_host()
+							var cancel_id = msg.get("id", "")
+							var reason = msg.get("reason", "User cancelled")
+							debug_print("Sync cancelled: %s (ID: %s)" % [reason, cancel_id])
+							_update_device_state_by_ip(client_ip, "Idle")
+
+						"failed":
+							var client_ip = client.get_connected_host()
+							var fail_reason = msg.get("reason", "Unknown error")
+							printerr("Sync failed: %s" % fail_reason)
+							_update_device_state_by_ip(client_ip, "Error")
+
+						"game_started":
+							var client_ip = client.get_connected_host()
+							debug_print("Game started on client")
+							_update_device_state_by_ip(client_ip, "Debugging")
+
+						"game_stopped":
+							var client_ip = client.get_connected_host()
+							debug_print("Received stop game request. Stopping TCP server.")
 							_update_device_state_by_ip(client_ip, "Idle")
 							stop_tcp_server()
+
+						"syncing":
+							var client_ip = client.get_connected_host()
+							debug_print("Client is syncing files")
+							_update_device_state_by_ip(client_ip, "Connecting")
+
+						"sync_complete":
+							var client_ip = client.get_connected_host()
+							debug_print("Sync completed successfully")
+							_update_device_state_by_ip(client_ip, "Connected")
+
+						"pairing_request":
+							debug_print("Received pairing request (unexpected on server)")
+
 						"pairing_response":
-							print("[TCP] Handling pairing response...")
+							debug_print("[TCP] Handling pairing response")
 							var client_ip = client.get_connected_host()
 							handle_pairing_response(msg, client_ip)
+
+						"pairing_accepted", "pairing_rejected":
+							debug_print("Received pairing status: %s" % message_type)
+
 						_:
-							print("[TCP] Unknown message type: %s" % message_type)
+							debug_print("[TCP] Unknown message type: %s" % message_type)
 				else:
 					printerr("[TCP] JSON parse error: %d" % parse_result)
 					printerr("[TCP] Failed to parse: %s" % data)
@@ -1204,107 +1242,76 @@ func send_pairing_request(device_data: Dictionary, pairing_code: String) -> void
 	var target_address = device_data.get("address", "")
 	var target_port = device_data.get("dataPort", 9986)
 
-	print("[Pairing] ========== PAIRING REQUEST START ==========")
-	print("[Pairing] Device ID: %s" % device_id)
-	print("[Pairing] Device Name: %s" % device_name)
-	print("[Pairing] Target Address: %s:%s" % [target_address, target_port])
-	print("[Pairing] Pairing Code: %s" % pairing_code)
-	print("[Pairing] Server Device ID: %s" % user.device_id)
-	print("[Pairing] Server Device Name: %s" % get_device_name())
+	debug_print("[Pairing] Sending pairing request to %s with code: %s" % [device_name, pairing_code])
+	debug_print("[Pairing] Target: %s:%s, Server ID: %s" % [target_address, target_port, user.device_id])
 
 	# Ensure TCP server is running to receive pairing response
-	print("[Pairing] Checking TCP server status...")
-	print("[Pairing] TCP server running: %s" % str(tcp_server_running))
 	if not tcp_server_running:
-		print("[Pairing] Starting TCP server to receive pairing response...")
+		debug_print("[Pairing] Starting TCP server to receive pairing response...")
 		if not start_tcp_server():
-			printerr("[Pairing] ERROR: Failed to start TCP server")
+			printerr("[Pairing] Failed to start TCP server")
 			emit_signal("pairing_failed", device_id, "Failed to start TCP server")
 			return
-		print("[Pairing] ✓ TCP server started on port %d" % TCP_PORT)
-	else:
-		print("[Pairing] ✓ TCP server already running on port %d" % TCP_PORT)
+		debug_print("[Pairing] TCP server started on port %d" % TCP_PORT)
 
 	# Create request message
 	var request = {
 		"id": generate_guid(),
 		"messageType": "pairing_request",
 		"pairingCode": pairing_code,
-		"deviceId": user.device_id,  # Server's unique device ID
-		"deviceName": get_device_name()  # Server's display name
+		"deviceId": user.device_id,
+		"deviceName": get_device_name()
 	}
 
-	print("[Pairing] Request message: %s" % str(request))
+	debug_print("[Pairing] Request: %s" % str(request))
 
 	# Serialize to JSON
 	var json_data = JSON.stringify(request)
-	print("[Pairing] JSON data: %s" % json_data)
-	print("[Pairing] JSON length: %d" % json_data.length())
-
 	var data = json_data.to_utf8_buffer()
-	print("[Pairing] Buffer size: %d bytes" % data.size())
 
 	# Send via UDP
 	var udp = PacketPeerUDP.new()
 	udp.set_broadcast_enabled(true)
 	var err = udp.connect_to_host(target_address, target_port)
 	if err != OK:
-		printerr("[Pairing] ERROR: Failed to connect to device for pairing request: ", err)
+		printerr("[Pairing] Failed to connect for pairing request: %d" % err)
 		emit_signal("pairing_failed", device_id, "Network error")
 		return
 
-	print("[Pairing] UDP connected, sending packet...")
 	var sent = udp.put_packet(data)
 	if sent != OK:
-		printerr("[Pairing] ERROR: Failed to send pairing request packet: ", sent)
+		printerr("[Pairing] Failed to send pairing request: %d" % sent)
 		emit_signal("pairing_failed", device_id, "Failed to send request")
 	else:
-		print("[Pairing] ✓ Pairing request sent successfully to %s:%s" % [target_address, str(target_port)])
+		debug_print("[Pairing] Request sent to %s:%s" % [target_address, target_port])
 
 	udp.close()
-	print("[Pairing] ========== PAIRING REQUEST END ==========")
 
 ## Handle pairing response from device
 func handle_pairing_response(data: Dictionary, client_ip: String) -> void:
-	print("[Pairing] ========== PAIRING RESPONSE RECEIVED ==========")
-	print("[Pairing] Client IP: %s" % client_ip)
-	print("[Pairing] Raw response data: %s" % str(data))
-
 	var response_id = data.get("id", "")
 	var accepted = data.get("accepted", false)
 	var session_token = data.get("sessionToken", "")
 	var reason = data.get("reason", "Unknown error")
 
-	print("[Pairing] Response ID: %s" % response_id)
-	print("[Pairing] Accepted: %s" % str(accepted))
-	print("[Pairing] Session Token: %s" % session_token)
-	print("[Pairing] Reason: %s" % reason)
+	debug_print("[Pairing] Response from %s: accepted=%s, token=%s" % [client_ip, str(accepted), session_token])
 
 	# Find device by IP
-	print("[Pairing] Looking up device by IP: %s" % client_ip)
 	var device_data = _get_device_by_ip(client_ip)
 	if device_data.is_empty():
-		printerr("[Pairing] ERROR: Could not find device for IP: %s" % client_ip)
-		print("[Pairing] Available devices:")
-		for dev_id in discovered_devices.keys():
-			var dev = discovered_devices[dev_id]
-			print("[Pairing]   - %s: %s (%s)" % [dev_id, dev.get("deviceName", "?"), dev.get("address", "?")])
+		printerr("[Pairing] Could not find device for IP: %s" % client_ip)
 		return
 
 	var device_id = device_data.get("deviceId", "")
 	var device_name = device_data.get("deviceName", "Unknown Device")
-	print("[Pairing] Found device: %s (ID: %s)" % [device_name, device_id])
 
 	if accepted and session_token != "":
-		print("[Pairing] ✓ Pairing ACCEPTED")
-		print("[Pairing] Session token: %s" % session_token)
+		debug_print("[Pairing] Pairing accepted for %s" % device_name)
 
 		# Save device as permanently paired
-		print("[Pairing] Saving device to paired devices list...")
 		pairing_manager.add_paired_device(device_id, device_name)
 
 		# Update device in discovered devices list
-		print("[Pairing] Updating device data...")
 		discovered_devices[device_id]["sessionToken"] = session_token
 		discovered_devices[device_id]["isPairingMode"] = true
 		discovered_devices[device_id]["isPaired"] = true
@@ -1312,52 +1319,34 @@ func handle_pairing_response(data: Dictionary, client_ip: String) -> void:
 		discovered_devices[device_id]["badgeText"] = "Paired"
 		discovered_devices[device_id]["priority"] = 1
 
-		print("[Pairing] Device data updated: %s" % str(discovered_devices[device_id]))
-
 		# Refresh UI
-		print("[Pairing] Refreshing device list UI...")
 		_refresh_device_list()
 
 		# Emit success signal
-		print("[Pairing] Emitting pairing_succeeded signal...")
 		emit_signal("pairing_succeeded", device_id)
 
-		print("[Pairing] ✓ Successfully paired with %s" % device_name)
+		print("[Pairing] Successfully paired with %s" % device_name)
 	else:
-		printerr("[Pairing] ✗ Pairing REJECTED: %s" % reason)
+		printerr("[Pairing] Pairing rejected: %s" % reason)
 		emit_signal("pairing_failed", device_id, reason)
-
-	print("[Pairing] ========== PAIRING RESPONSE END ==========")
 
 ## Called when pairing succeeds - auto-launch game
 func _on_pairing_succeeded(device_id: String) -> void:
-	print("[Pairing] ========== PAIRING SUCCESS HANDLER ==========")
-	print("[Pairing] Device ID: %s" % device_id)
+	debug_print("[Pairing] Pairing succeeded for device: %s" % device_id)
 
 	# Update UI to show paired status
-	print("[Pairing] Refreshing device list...")
 	_refresh_device_list()
-
-	print("[Pairing] Syncing devices to export platform...")
 	_sync_devices_to_export_platform()
-
-	# Show success message
-	print("[Pairing] ✓ Device paired successfully! Ready to launch game.")
 
 	# Auto-launch game on paired device
 	if discovered_devices.has(device_id):
-		var device_data = discovered_devices[device_id]
-		print("[Pairing] Setting export platform selected device to: %s" % device_id)
-		# Trigger the export platform to launch on this device
 		if export_platform:
 			export_platform.selected_device_id = device_id
-			print("[Pairing] Export platform updated")
+			debug_print("[Pairing] Export platform updated to use device: %s" % device_id)
 		else:
-			printerr("[Pairing] ERROR: export_platform is null!")
+			printerr("[Pairing] Export platform is null")
 	else:
-		printerr("[Pairing] ERROR: Device %s not found in discovered_devices" % device_id)
-
-	print("[Pairing] ========== PAIRING SUCCESS HANDLER END ==========")
+		printerr("[Pairing] Device %s not found in discovered_devices" % device_id)
 
 ## Called when pairing fails
 func _on_pairing_failed(device_id: String, reason: String) -> void:
