@@ -11,6 +11,8 @@ var is_manual: bool = false
 var pending_device_data: Dictionary = {}
 var is_version_rejected: bool = false
 var device_godot_version: String = ""
+var can_connect: bool = true
+var badge_text: String = ""
 
 # Node references
 @onready var device_label: Label = $HBoxContainer/DeviceLabel
@@ -52,18 +54,32 @@ func set_device_data(device_data: Dictionary):
 	is_manual = device_data.get("isManual", false)
 	device_godot_version = device_data.get("godotVersion", "")
 
+	# Check pairing status
+	can_connect = device_data.get("canConnect", true)
+	badge_text = device_data.get("badgeText", "")
+
 	# Check if this device's version was rejected
 	is_version_rejected = device_data.has("versionApproved") and not device_data["versionApproved"]
 
 	if XogotDebug.ENABLED:
-		print("Setting device data for: ", device_id, ", isManual: ", is_manual, ", rejected: ", is_version_rejected)
+		print("Setting device data for: ", device_id, ", isManual: ", is_manual, ", rejected: ", is_version_rejected, ", canConnect: ", can_connect, ", badge: ", badge_text)
 
 	var device_text = "%s (%s)" % [
 		device_data.get("deviceName", "Unknown Device"),
 		device_data.get("address", "?")
 	]
 
-	# Add rejection indicator to text
+	# Add pairing badge to text
+	if badge_text != "":
+		match badge_text:
+			"Same Account":
+				device_text += " [✓ Same Account]"
+			"Paired":
+				device_text += " [✓ Paired]"
+			"Pairing Required":
+				device_text += " [⚠ Pairing Required]"
+
+	# Add rejection indicator to text (overrides pairing badge if rejected)
 	if is_version_rejected:
 		device_text += " [Version Rejected]"
 
@@ -75,7 +91,9 @@ func set_device_data(device_data: Dictionary):
 			device_data.get("serviceType", "?"),
 			device_data.get("appVersion", "?")
 		]
-		if is_version_rejected:
+		if badge_text == "Pairing Required":
+			tooltip += "\n⚠️ Click to enter pairing code"
+		elif is_version_rejected:
 			tooltip += "\n⚠️ Click to re-enable this version"
 		device_label.tooltip_text = tooltip
 
@@ -108,8 +126,8 @@ func update_state(state: String):
 func _gui_input(event: InputEvent):
 	if event is InputEventMouseButton:
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			# Only emit click signal if device is rejected
-			if is_version_rejected:
+			# Emit click signal if device is rejected OR needs pairing
+			if is_version_rejected or badge_text == "Pairing Required":
 				device_clicked.emit(device_id, device_godot_version)
 				accept_event()
 

@@ -1,0 +1,23 @@
+[gd_scene load_steps=2 format=3 uid="uid://bjv3w8qy5qh4r"]
+
+[ext_resource type="Script" path="res://addons/xogot_connect/pairing_dialog.gd" id="1_xogot"]
+
+[node name="PairingDialog" type="ConfirmationDialog"]
+title = "Pair with Device"
+initial_position = 2
+size = Vector2i(400, 150)
+ok_button_text = "Pair"
+dialog_text = "Enter the 4-digit pairing code displayed on the device"
+script = ExtResource("1_xogot")
+
+[node name="VBoxContainer" type="VBoxContainer" parent="."]
+offset_left = 8.0
+offset_top = 8.0
+offset_right = 392.0
+offset_bottom = 101.0
+
+[node name="CodeInput" type="LineEdit" parent="VBoxContainer"]
+layout_mode = 2
+placeholder_text = "1234"
+alignment = 1
+max_length = 4

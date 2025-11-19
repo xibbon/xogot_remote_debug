@@ -2,6 +2,7 @@
 extends Control
 
 const XogotDebug = preload("res://addons/xogot_connect/xogot_debug.gd")
+const PairingDialog = preload("res://addons/xogot_connect/pairing_dialog.tscn")
 
 # Plugin version
 const PLUGIN_VERSION = "1.0.2"
@@ -92,6 +93,11 @@ var rejected_versions := {}  # {version_string: bool}
 # Current device being prompted for version confirmation
 var current_version_prompt_device_id: String = ""
 
+# Pairing system
+var pairing_manager: PairingManager = null
+signal pairing_succeeded(device_id: String)
+signal pairing_failed(device_id: String, reason: String)
+
 func debug_print(message: String):
 	if XogotDebug.ENABLED:
 		print(message)
@@ -138,6 +144,11 @@ func _ready() -> void:
 	loadUser()
 	# start_scanning()
 	set_process(true)
+
+	# Initialize pairing manager
+	pairing_manager = PairingManager.new()
+	pairing_succeeded.connect(_on_pairing_succeeded)
+	pairing_failed.connect(_on_pairing_failed)
 
 	# Initialize HTTP request node
 	http_request = HTTPRequest.new()
@@ -563,8 +574,58 @@ func processTcpListener():
 
 			# Check for available data
 			if client.get_available_bytes() > 0:
-				var data = client.get_utf8_string(client.get_available_bytes())
+				var available_bytes = client.get_available_bytes()
+				print("[TCP] Available bytes: %d" % available_bytes)
+
+				# Read raw bytes first
+				var raw_bytes = client.get_data(available_bytes)
+				if raw_bytes[0] != OK:
+					printerr("[TCP] Failed to read data: %d" % raw_bytes[0])
+					clients_to_remove.append(i)
+					continue
+
+				var packet_data = raw_bytes[1]
+				print("[TCP] Raw packet size: %d bytes" % packet_data.size())
+
+				# Check if data is length-prefixed (first 4 bytes = UInt32 length)
+				var data: String = ""
+				if packet_data.size() >= 4:
+					# Try to read length prefix (big-endian UInt32)
+					var length_prefix = (packet_data[0] << 24) | (packet_data[1] << 16) | (packet_data[2] << 8) | packet_data[3]
+					print("[TCP] Potential length prefix (big-endian): %d" % length_prefix)
+
+					# Check if this looks like a length prefix
+					if length_prefix > 0 and length_prefix < 1000000 and packet_data.size() >= (4 + length_prefix):
+						# Data appears to be length-prefixed
+						print("[TCP] Data appears to be length-prefixed, extracting JSON...")
+						var json_bytes = packet_data.slice(4, 4 + length_prefix)
+						data = json_bytes.get_string_from_utf8()
+						print("[TCP] Extracted data length: %d" % data.length())
+					else:
+						# Try little-endian
+						var length_prefix_le = packet_data[0] | (packet_data[1] << 8) | (packet_data[2] << 16) | (packet_data[3] << 24)
+						print("[TCP] Potential length prefix (little-endian): %d" % length_prefix_le)
+
+						if length_prefix_le > 0 and length_prefix_le < 1000000 and packet_data.size() >= (4 + length_prefix_le):
+							print("[TCP] Data appears to be length-prefixed (little-endian), extracting JSON...")
+							var json_bytes = packet_data.slice(4, 4 + length_prefix_le)
+							data = json_bytes.get_string_from_utf8()
+							print("[TCP] Extracted data length: %d" % data.length())
+						else:
+							# Not length-prefixed, read as raw string
+							print("[TCP] No valid length prefix found, reading as raw UTF-8...")
+							data = packet_data.get_string_from_utf8()
+				else:
+					# Packet too small for length prefix
+					print("[TCP] Packet too small for length prefix, reading as raw UTF-8...")
+					data = packet_data.get_string_from_utf8()
+
+				print("[TCP] Final data length: %d" % data.length())
+				print("[TCP] Final data: %s" % data)
+
 				if data == "":  # Empty data might indicate disconnection
+					printerr("[TCP] Empty data received (could not decode UTF-8), marking client for removal")
+					printerr("[TCP] Raw bytes (first 32): %s" % packet_data.slice(0, min(32, packet_data.size())))
 					clients_to_remove.append(i)
 					continue
 
@@ -572,15 +633,32 @@ func processTcpListener():
 
 				# Parse JSON message
 				var json_parser = JSON.new()
-				if json_parser.parse(data) == OK:
+				var parse_result = json_parser.parse(data)
+				print("[TCP] JSON parse result: %d" % parse_result)
+
+				if parse_result == OK:
 					var msg = json_parser.get_data()
+					print("[TCP] Parsed message: %s" % str(msg))
 
 					# Handle message types
-					if msg.has("messageType") and msg["messageType"] == "game_stopped":
-						debug_print("Received stop game request. Stopping TCP server.")
-						var client_ip = client.get_connected_host()
-						_update_device_state_by_ip(client_ip, "Idle")
-						stop_tcp_server()
+					var message_type = msg.get("messageType", "")
+					print("[TCP] Message type: %s" % message_type)
+
+					match message_type:
+						"game_stopped":
+							debug_print("Received stop game request. Stopping TCP server.")
+							var client_ip = client.get_connected_host()
+							_update_device_state_by_ip(client_ip, "Idle")
+							stop_tcp_server()
+						"pairing_response":
+							print("[TCP] Handling pairing response...")
+							var client_ip = client.get_connected_host()
+							handle_pairing_response(msg, client_ip)
+						_:
+							print("[TCP] Unknown message type: %s" % message_type)
+				else:
+					printerr("[TCP] JSON parse error: %d" % parse_result)
+					printerr("[TCP] Failed to parse: %s" % data)
 		
 		# Remove disconnected clients (iterate backwards to avoid index issues)
 		for i in range(clients_to_remove.size() - 1, -1, -1):
@@ -610,6 +688,18 @@ func add_device_to_ui(device_data: Dictionary):
 	var key = device_data["deviceId"]
 	# Add timestamp to device data for stale device removal
 	device_data["last_seen"] = Time.get_unix_time_from_system()
+
+	# Track pairing mode and session token
+	if not device_data.has("isPairingMode"):
+		device_data["isPairingMode"] = device_data.get("pairingMode", "false") == "true"
+	if not device_data.has("sessionToken"):
+		device_data["sessionToken"] = device_data.get("sessionToken", "")
+
+	# Check pairing status
+	device_data["isPaired"] = pairing_manager.is_paired(key)
+	device_data["canConnect"] = _can_device_connect(device_data)
+	device_data["badgeText"] = _get_device_badge_text(device_data)
+	device_data["priority"] = _get_device_priority(device_data)
 
 	# Check if this is a new device or an update
 	var is_new_device = not discovered_devices.has(key)
@@ -671,26 +761,30 @@ func add_device_to_ui(device_data: Dictionary):
 	_refresh_device_list()
 
 func _sync_devices_to_export_platform():
-	# Only sync devices that are approved or have matching versions
+	# Only sync devices that can connect (paired or same account) and have approved versions
 	if export_platform:
 		var approved_devices = []
 		for device in discovered_devices.values():
-			# Include device if:
-			# 1. Version matches exactly, OR
-			# 2. Version doesn't match but was approved by user
-			var include_device = false
 			var device_name = device.get("deviceName", "Unknown")
+			var can_connect = device.get("canConnect", false)
 			var has_version_match = device.get("versionMatch", true)
 			var has_version_approved = device.has("versionApproved") and device["versionApproved"]
 
+			# MUST be able to connect (paired/same account)
+			if not can_connect:
+				debug_print("  ✗ Excluding %s (pairing required)" % device_name)
+				continue
+
+			# MUST have matching or approved version
+			var include_device = false
 			if has_version_match:
 				# Version matches or no version info
 				include_device = true
-				debug_print("  ✓ Including %s (version matches)" % device_name)
+				debug_print("  ✓ Including %s (version matches, can connect)" % device_name)
 			elif has_version_approved:
 				# Version mismatch but user approved it
 				include_device = true
-				debug_print("  ✓ Including %s (version approved: %s)" % [device_name, device.get("godotVersion", "?")])
+				debug_print("  ✓ Including %s (version approved: %s, can connect)" % [device_name, device.get("godotVersion", "?")])
 			else:
 				debug_print("  ✗ Excluding %s (version rejected or pending)" % device_name)
 
@@ -708,7 +802,19 @@ func _refresh_device_list():
 		var children = devices_vbox.get_children()
 		for child in children:
 			child.queue_free()
-		for device_data in discovered_devices.values():
+
+		# Sort devices by priority (lower priority value = higher in list)
+		var sorted_devices = discovered_devices.values()
+		sorted_devices.sort_custom(func(a, b):
+			var priority_a = a.get("priority", 999)
+			var priority_b = b.get("priority", 999)
+			if priority_a != priority_b:
+				return priority_a < priority_b
+			# If same priority, sort alphabetically by name
+			return a.get("deviceName", "") < b.get("deviceName", "")
+		)
+
+		for device_data in sorted_devices:
 			var device_panel = DevicePanel.instantiate()
 			device_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 			device_panel.set_device_data(device_data)
@@ -718,7 +824,7 @@ func _refresh_device_list():
 			if device_data.get("isManual", false):
 				device_panel.device_removed.connect(_on_manual_device_removed)
 
-			# Connect the device_clicked signal for rejected devices
+			# Connect the device_clicked signal for rejected devices and unpaired devices
 			device_panel.device_clicked.connect(_on_device_clicked)
 
 			# Apply current state if exists
@@ -727,7 +833,7 @@ func _refresh_device_list():
 				device_panel.update_state(device_states[device_id])
 			else:
 				device_panel.update_state("Idle")
-		
+
 		# Update help text visibility
 		_update_no_devices_help()
 	else:
@@ -938,6 +1044,61 @@ func _on_version_mismatch_canceled(device_version: String):
 	if version_dialog.canceled.is_connected(_on_version_mismatch_canceled):
 		version_dialog.canceled.disconnect(_on_version_mismatch_canceled)
 
+# --- Pairing System Helper Functions ---
+
+## Check if a device can connect without pairing
+func _can_device_connect(device_data: Dictionary) -> bool:
+	var device_id = device_data.get("deviceId", "")
+	var device_user_id = device_data.get("userId", "")
+
+	# Priority 1: Same user ID
+	if device_user_id != "" and user.user_id != "" and device_user_id == user.user_id:
+		return true
+
+	# Priority 2: Previously paired
+	if pairing_manager.is_paired(device_id):
+		return true
+
+	# Priority 3: Has active session token (currently paired in this session)
+	var is_pairing_mode = device_data.get("isPairingMode", false)
+	var session_token = device_data.get("sessionToken", "")
+	if is_pairing_mode and session_token != "":
+		return true
+
+	return false
+
+## Get badge text for UI display
+func _get_device_badge_text(device_data: Dictionary) -> String:
+	var device_id = device_data.get("deviceId", "")
+	var device_user_id = device_data.get("userId", "")
+
+	if device_user_id != "" and user.user_id != "" and device_user_id == user.user_id:
+		return "Same Account"
+	if pairing_manager.is_paired(device_id):
+		return "Paired"
+	return "Pairing Required"
+
+## Get device priority for sorting (lower = higher priority)
+func _get_device_priority(device_data: Dictionary) -> int:
+	var device_id = device_data.get("deviceId", "")
+	var device_user_id = device_data.get("userId", "")
+
+	if device_user_id != "" and user.user_id != "" and device_user_id == user.user_id:
+		return 0  # Highest priority
+	if pairing_manager.is_paired(device_id):
+		return 1  # Second priority
+	return 2  # Lowest priority
+
+## Get device name for server identification
+func get_device_name() -> String:
+	# Return a user-friendly device name
+	var hostname = OS.get_environment("HOSTNAME")
+	if hostname == "":
+		hostname = OS.get_environment("COMPUTERNAME")
+	if hostname == "":
+		hostname = "Godot Editor"
+	return hostname
+
 # --- Add a simple GUID generator ---
 func generate_guid() -> String:
 	var hex = "0123456789abcdef"
@@ -1005,6 +1166,7 @@ func sendSyncRequest(target_address: String, target_port: int, project_name: Str
 		"messageType": "request",
 		"id": generate_guid(),
 		"userId": user_id,
+		"deviceId": user.device_id,  # Add Godot server's device ID
 		"projectName": project_name,
 		"projectPath": project_path,
 		"senderIPs": sender_ips,
@@ -1013,6 +1175,7 @@ func sendSyncRequest(target_address: String, target_port: int, project_name: Str
 		"timestamp": Time.get_unix_time_from_system(),
 		"syncType": sync_type
 	}
+	debug_print("Sync request includes deviceId: %s" % user.device_id)
 	var json = JSON.stringify(sync_request)
 	var packet = json.to_utf8_buffer()
 	var udp = PacketPeerUDP.new()
@@ -1033,6 +1196,191 @@ func stop_remote_session():
 	stop_tcp_server()
 	stop_udp_listener()
 	_hide_tcp_error()
+
+## Send a pairing request to a device
+func send_pairing_request(device_data: Dictionary, pairing_code: String) -> void:
+	var device_id = device_data.get("deviceId", "")
+	var device_name = device_data.get("deviceName", "Unknown Device")
+	var target_address = device_data.get("address", "")
+	var target_port = device_data.get("dataPort", 9986)
+
+	print("[Pairing] ========== PAIRING REQUEST START ==========")
+	print("[Pairing] Device ID: %s" % device_id)
+	print("[Pairing] Device Name: %s" % device_name)
+	print("[Pairing] Target Address: %s:%s" % [target_address, target_port])
+	print("[Pairing] Pairing Code: %s" % pairing_code)
+	print("[Pairing] Server Device ID: %s" % user.device_id)
+	print("[Pairing] Server Device Name: %s" % get_device_name())
+
+	# Ensure TCP server is running to receive pairing response
+	print("[Pairing] Checking TCP server status...")
+	print("[Pairing] TCP server running: %s" % str(tcp_server_running))
+	if not tcp_server_running:
+		print("[Pairing] Starting TCP server to receive pairing response...")
+		if not start_tcp_server():
+			printerr("[Pairing] ERROR: Failed to start TCP server")
+			emit_signal("pairing_failed", device_id, "Failed to start TCP server")
+			return
+		print("[Pairing] ✓ TCP server started on port %d" % TCP_PORT)
+	else:
+		print("[Pairing] ✓ TCP server already running on port %d" % TCP_PORT)
+
+	# Create request message
+	var request = {
+		"id": generate_guid(),
+		"messageType": "pairing_request",
+		"pairingCode": pairing_code,
+		"deviceId": user.device_id,  # Server's unique device ID
+		"deviceName": get_device_name()  # Server's display name
+	}
+
+	print("[Pairing] Request message: %s" % str(request))
+
+	# Serialize to JSON
+	var json_data = JSON.stringify(request)
+	print("[Pairing] JSON data: %s" % json_data)
+	print("[Pairing] JSON length: %d" % json_data.length())
+
+	var data = json_data.to_utf8_buffer()
+	print("[Pairing] Buffer size: %d bytes" % data.size())
+
+	# Send via UDP
+	var udp = PacketPeerUDP.new()
+	udp.set_broadcast_enabled(true)
+	var err = udp.connect_to_host(target_address, target_port)
+	if err != OK:
+		printerr("[Pairing] ERROR: Failed to connect to device for pairing request: ", err)
+		emit_signal("pairing_failed", device_id, "Network error")
+		return
+
+	print("[Pairing] UDP connected, sending packet...")
+	var sent = udp.put_packet(data)
+	if sent != OK:
+		printerr("[Pairing] ERROR: Failed to send pairing request packet: ", sent)
+		emit_signal("pairing_failed", device_id, "Failed to send request")
+	else:
+		print("[Pairing] ✓ Pairing request sent successfully to %s:%s" % [target_address, str(target_port)])
+
+	udp.close()
+	print("[Pairing] ========== PAIRING REQUEST END ==========")
+
+## Handle pairing response from device
+func handle_pairing_response(data: Dictionary, client_ip: String) -> void:
+	print("[Pairing] ========== PAIRING RESPONSE RECEIVED ==========")
+	print("[Pairing] Client IP: %s" % client_ip)
+	print("[Pairing] Raw response data: %s" % str(data))
+
+	var response_id = data.get("id", "")
+	var accepted = data.get("accepted", false)
+	var session_token = data.get("sessionToken", "")
+	var reason = data.get("reason", "Unknown error")
+
+	print("[Pairing] Response ID: %s" % response_id)
+	print("[Pairing] Accepted: %s" % str(accepted))
+	print("[Pairing] Session Token: %s" % session_token)
+	print("[Pairing] Reason: %s" % reason)
+
+	# Find device by IP
+	print("[Pairing] Looking up device by IP: %s" % client_ip)
+	var device_data = _get_device_by_ip(client_ip)
+	if device_data.is_empty():
+		printerr("[Pairing] ERROR: Could not find device for IP: %s" % client_ip)
+		print("[Pairing] Available devices:")
+		for dev_id in discovered_devices.keys():
+			var dev = discovered_devices[dev_id]
+			print("[Pairing]   - %s: %s (%s)" % [dev_id, dev.get("deviceName", "?"), dev.get("address", "?")])
+		return
+
+	var device_id = device_data.get("deviceId", "")
+	var device_name = device_data.get("deviceName", "Unknown Device")
+	print("[Pairing] Found device: %s (ID: %s)" % [device_name, device_id])
+
+	if accepted and session_token != "":
+		print("[Pairing] ✓ Pairing ACCEPTED")
+		print("[Pairing] Session token: %s" % session_token)
+
+		# Save device as permanently paired
+		print("[Pairing] Saving device to paired devices list...")
+		pairing_manager.add_paired_device(device_id, device_name)
+
+		# Update device in discovered devices list
+		print("[Pairing] Updating device data...")
+		discovered_devices[device_id]["sessionToken"] = session_token
+		discovered_devices[device_id]["isPairingMode"] = true
+		discovered_devices[device_id]["isPaired"] = true
+		discovered_devices[device_id]["canConnect"] = true
+		discovered_devices[device_id]["badgeText"] = "Paired"
+		discovered_devices[device_id]["priority"] = 1
+
+		print("[Pairing] Device data updated: %s" % str(discovered_devices[device_id]))
+
+		# Refresh UI
+		print("[Pairing] Refreshing device list UI...")
+		_refresh_device_list()
+
+		# Emit success signal
+		print("[Pairing] Emitting pairing_succeeded signal...")
+		emit_signal("pairing_succeeded", device_id)
+
+		print("[Pairing] ✓ Successfully paired with %s" % device_name)
+	else:
+		printerr("[Pairing] ✗ Pairing REJECTED: %s" % reason)
+		emit_signal("pairing_failed", device_id, reason)
+
+	print("[Pairing] ========== PAIRING RESPONSE END ==========")
+
+## Called when pairing succeeds - auto-launch game
+func _on_pairing_succeeded(device_id: String) -> void:
+	print("[Pairing] ========== PAIRING SUCCESS HANDLER ==========")
+	print("[Pairing] Device ID: %s" % device_id)
+
+	# Update UI to show paired status
+	print("[Pairing] Refreshing device list...")
+	_refresh_device_list()
+
+	print("[Pairing] Syncing devices to export platform...")
+	_sync_devices_to_export_platform()
+
+	# Show success message
+	print("[Pairing] ✓ Device paired successfully! Ready to launch game.")
+
+	# Auto-launch game on paired device
+	if discovered_devices.has(device_id):
+		var device_data = discovered_devices[device_id]
+		print("[Pairing] Setting export platform selected device to: %s" % device_id)
+		# Trigger the export platform to launch on this device
+		if export_platform:
+			export_platform.selected_device_id = device_id
+			print("[Pairing] Export platform updated")
+		else:
+			printerr("[Pairing] ERROR: export_platform is null!")
+	else:
+		printerr("[Pairing] ERROR: Device %s not found in discovered_devices" % device_id)
+
+	print("[Pairing] ========== PAIRING SUCCESS HANDLER END ==========")
+
+## Called when pairing fails
+func _on_pairing_failed(device_id: String, reason: String) -> void:
+	printerr("[Pairing] Pairing failed for device %s: %s" % [device_id, reason])
+
+	# Show error dialog
+	var dialog = AcceptDialog.new()
+	dialog.title = "Pairing Failed"
+
+	match reason:
+		"Invalid pairing code":
+			dialog.dialog_text = "Incorrect pairing code. Please check the code and try again."
+		"Pairing mode is not active":
+			dialog.dialog_text = "Device is not in pairing mode. Please restart advertising on the device."
+		"Session expired":
+			dialog.dialog_text = "Pairing session expired. Please try again."
+		_:
+			dialog.dialog_text = "Pairing failed: %s" % reason
+
+	add_child(dialog)
+	dialog.popup_centered()
+	# Auto-cleanup dialog when closed
+	dialog.confirmed.connect(func(): dialog.queue_free())
 
 
 func _on_scan_button_pressed() -> void:
@@ -1455,24 +1803,52 @@ func _on_add_device_button_pressed():
 	debug_print("Manually added device: %s at %s:%d" % [device_name, ip_address, port])
 
 func _on_device_clicked(device_id: String, godot_version: String):
-	debug_print("Clicked on rejected device: " + device_id + ", version: " + godot_version)
-
-	# Get device data for the dialog
+	# Get device data
 	if not discovered_devices.has(device_id):
 		return
 
 	var device_data = discovered_devices[device_id]
 	var device_name = device_data.get("deviceName", "Unknown Device")
-	var editor_version = get_current_godot_version()
+	var can_connect = device_data.get("canConnect", false)
 
-	# Remove from rejected list so we can re-prompt
-	rejected_versions.erase(godot_version)
+	# Check if device can connect without pairing
+	if can_connect:
+		# Device is already paired or same account - this click is for version mismatch
+		debug_print("Clicked on rejected device: " + device_id + ", version: " + godot_version)
+		var editor_version = get_current_godot_version()
 
-	# Store current device for callback
-	current_version_prompt_device_id = device_id
+		# Remove from rejected list so we can re-prompt
+		rejected_versions.erase(godot_version)
 
-	# Show the dialog again
-	_show_version_mismatch_dialog(godot_version, editor_version, device_name)
+		# Store current device for callback
+		current_version_prompt_device_id = device_id
+
+		# Show the dialog again
+		_show_version_mismatch_dialog(godot_version, editor_version, device_name)
+	else:
+		# Device needs pairing - show pairing dialog
+		debug_print("Clicked on unpaired device: " + device_id)
+		_show_pairing_dialog(device_data)
+
+## Show pairing dialog for code entry
+func _show_pairing_dialog(device_data: Dictionary) -> void:
+	var device_name = device_data.get("deviceName", "Unknown Device")
+
+	var dialog = PairingDialog.instantiate()
+	dialog.device_name = device_name
+
+	# Connect signals
+	dialog.code_entered.connect(func(code):
+		send_pairing_request(device_data, code)
+		dialog.queue_free()
+	)
+
+	dialog.cancelled.connect(func():
+		dialog.queue_free()
+	)
+
+	add_child(dialog)
+	dialog.popup_centered()
 
 func _on_manual_device_removed(device_id: String):
 	if discovered_devices.has(device_id):
