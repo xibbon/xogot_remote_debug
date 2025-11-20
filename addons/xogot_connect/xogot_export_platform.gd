@@ -97,6 +97,97 @@ func _validate_setup() -> String:
 
 	return ""  # No errors
 
+# Check for iOS native libraries that won't work with remote debugging
+func _check_for_native_ios_libraries() -> String:
+	var project_path = ProjectSettings.globalize_path("res://")
+	var native_files = []
+
+	# Check for .a (static libraries)
+	var static_libs = _find_files_by_extension(project_path, ".a")
+	native_files.append_array(static_libs)
+
+	# Check for .dylib (dynamic libraries)
+	var dylibs = _find_files_by_extension(project_path, ".dylib")
+	native_files.append_array(dylibs)
+
+	# Check for .xcframework
+	var xcframeworks = _find_directories_by_name(project_path, ".xcframework")
+	native_files.append_array(xcframeworks)
+
+	# Check for .framework (iOS frameworks)
+	var frameworks = _find_directories_by_name(project_path, ".framework")
+	native_files.append_array(frameworks)
+
+	if native_files.size() > 0:
+		var error_msg = "iOS native libraries detected. Remote debugging does not support:\n"
+		for file in native_files:
+			var relative_path = file.replace(project_path, "res://")
+			error_msg += "  • %s\n" % relative_path
+		error_msg += "\nThese native libraries will not be available during remote debugging."
+		return error_msg
+
+	return ""
+
+# Recursively find files with a specific extension
+func _find_files_by_extension(path: String, extension: String) -> Array:
+	var files = []
+	var dir = DirAccess.open(path)
+
+	if dir:
+		dir.list_dir_begin()
+		var file_name = dir.get_next()
+
+		while file_name != "":
+			var full_path = path.path_join(file_name)
+
+			if dir.current_is_dir():
+				# Skip hidden directories and common build/cache directories
+				if not file_name.begins_with(".") and file_name != "build" and file_name != ".godot":
+					files.append_array(_find_files_by_extension(full_path, extension))
+			else:
+				if file_name.ends_with(extension):
+					files.append(full_path)
+
+			file_name = dir.get_next()
+
+		dir.list_dir_end()
+
+	return files
+
+# Recursively find directories with a specific name pattern
+func _find_directories_by_name(path: String, pattern: String) -> Array:
+	var directories = []
+	var dir = DirAccess.open(path)
+
+	if dir:
+		dir.list_dir_begin()
+		var file_name = dir.get_next()
+
+		while file_name != "":
+			var full_path = path.path_join(file_name)
+
+			if dir.current_is_dir():
+				# Skip hidden directories and common build/cache directories
+				if not file_name.begins_with(".") and file_name != "build" and file_name != ".godot":
+					if file_name.ends_with(pattern):
+						directories.append(full_path)
+					else:
+						directories.append_array(_find_directories_by_name(full_path, pattern))
+
+			file_name = dir.get_next()
+
+		dir.list_dir_end()
+
+	return directories
+
+# Show warning dialog about native libraries
+func _show_native_library_warning(warning_msg: String) -> void:
+	# We can't directly create UI dialogs from an export platform
+	# So we'll use push_warning to show in the editor output
+	# and rely on xogot_instance to show a proper dialog if available
+	if xogot_instance:
+		xogot_instance.show_native_library_warning(warning_msg)
+
 func _run(preset: EditorExportPreset, device: int, debug_flags: int) -> Error:
 	# print("XogotExportPlatform: _run_on_target called for target: ", device)
 
@@ -106,6 +197,13 @@ func _run(preset: EditorExportPreset, device: int, debug_flags: int) -> Error:
 		# printerr("Xogot setup validation failed: ", validation_error)
 		push_error("Xogot Connect Remote Debugger setup error: " + validation_error)
 		return ERR_UNCONFIGURED
+
+	# Check for iOS native libraries
+	var native_lib_warning = _check_for_native_ios_libraries()
+	if native_lib_warning != "":
+		push_warning("Xogot Remote Debugger: " + native_lib_warning)
+		# Show warning dialog to user
+		_show_native_library_warning(native_lib_warning)
 
 	# Find the device from the target string
 	var device_data = discovered_devices[device]

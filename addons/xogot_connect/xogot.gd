@@ -40,6 +40,8 @@ var user = User.new()
 @onready var add_device_button: Button = %AddDeviceButton
 @onready var no_devices_help: MarginContainer = %NoDevicesHelp
 @onready var remote_debug_help: MarginContainer = %RemoteDebugHelp
+@onready var native_library_warning: PanelContainer = %NativeLibraryWarning
+@onready var native_library_list: Label = %LibraryList
 
 # Update notification UI (created programmatically)
 var update_notification_panel: PanelContainer = null
@@ -98,6 +100,10 @@ var pairing_manager: PairingManager = null
 signal pairing_succeeded(device_id: String)
 signal pairing_failed(device_id: String, reason: String)
 
+# Native library warning tracking
+var native_library_files: Array = []
+var show_native_library_warnings: bool = true
+
 func debug_print(message: String):
 	if XogotDebug.ENABLED:
 		print(message)
@@ -138,7 +144,10 @@ func loadUser():
 		debug_print("Creating new user")
 		user = User.new()
 		user.device_id = generate_guid()
-var settings := EditorInterface.get_editor_settings()
+
+	# Load native library warning preference
+	show_native_library_warnings = EditorInterface.get_editor_settings().get_project_metadata("xogot", "show_native_library_warnings", true)
+
 func _ready() -> void:
 	print("Xogot Remote Debugger Plugin Ready")
 	loadUser()
@@ -149,6 +158,9 @@ func _ready() -> void:
 	pairing_manager = PairingManager.new()
 	pairing_succeeded.connect(_on_pairing_succeeded)
 	pairing_failed.connect(_on_pairing_failed)
+
+	# Check for native libraries and update warning panel
+	_check_and_update_native_library_warning()
 
 	# Initialize HTTP request node
 	http_request = HTTPRequest.new()
@@ -264,13 +276,13 @@ func update_profile_display():
 var hasExportPlatform := false
 
 func isFileServerEnabled() -> bool :
-	return settings.get_project_metadata("debug_options", "run_file_server",false);
+	return EditorInterface.get_editor_settings().get_project_metadata("debug_options", "run_file_server",false);
 
 func isRemoteDebugEnabled() -> bool:
-	return settings.get_project_metadata("debug_options", "run_deploy_remote_debug",true)
+	return EditorInterface.get_editor_settings().get_project_metadata("debug_options", "run_deploy_remote_debug",true)
 
 func isRemoteHostLocalhost() -> bool:
-	var remote_host = settings.get_setting("network/debug/remote_host")
+	var remote_host = EditorInterface.get_editor_settings().get_setting("network/debug/remote_host")
 	return remote_host == "127.0.0.1" or remote_host == "localhost"
 
 func hasXogotExportPreset() -> bool:
@@ -972,6 +984,7 @@ func get_public_ip_addresses() -> Array:
 
 
 func update_remote_host_if_needed():
+	var settings = EditorInterface.get_editor_settings()
 	var current_host = settings.get_setting("network/debug/remote_host")
 	if current_host == "127.0.0.1" or current_host == "localhost":
 		var best_ip = "0.0.0.0"
@@ -1371,6 +1384,117 @@ func _on_pairing_failed(device_id: String, reason: String) -> void:
 	# Auto-cleanup dialog when closed
 	dialog.confirmed.connect(func(): dialog.queue_free())
 
+## Show warning dialog about native iOS libraries
+func show_native_library_warning(warning_msg: String) -> void:
+	# Only show popup dialog if warnings are enabled
+	if not show_native_library_warnings:
+		return
+
+	var dialog = ConfirmationDialog.new()
+	dialog.title = "iOS Native Libraries Detected"
+	dialog.dialog_text = warning_msg + "\n\nYou can continue debugging, but these libraries will not be loaded."
+	dialog.ok_button_text = "Continue"
+	dialog.cancel_button_text = "Don't Show This Again"
+
+	add_child(dialog)
+	dialog.popup_centered()
+
+	# Handle "Continue" button - just close the dialog
+	dialog.confirmed.connect(func(): dialog.queue_free())
+
+	# Handle "Don't Show This Again" button
+	dialog.canceled.connect(func():
+		show_native_library_warnings = false
+		# Don't hide the panel - only suppress popup dialogs
+		EditorInterface.get_editor_settings().set_project_metadata("xogot", "show_native_library_warnings", false)
+		print("[Xogot] Native library popup warnings disabled (panel will still show)")
+		dialog.queue_free()
+	)
+
+## Check for native libraries and update the warning panel
+func _check_and_update_native_library_warning() -> void:
+	if not export_platform:
+		return
+
+	# Get native library files from export platform
+	var project_path = ProjectSettings.globalize_path("res://")
+	native_library_files.clear()
+
+	# Check for .a (static libraries)
+	native_library_files.append_array(_find_files_by_extension(project_path, ".a"))
+
+	# Check for .dylib (dynamic libraries)
+	native_library_files.append_array(_find_files_by_extension(project_path, ".dylib"))
+
+	# Check for .xcframework
+	native_library_files.append_array(_find_directories_by_name(project_path, ".xcframework"))
+
+	# Check for .framework (iOS frameworks)
+	native_library_files.append_array(_find_directories_by_name(project_path, ".framework"))
+
+	# Update the warning panel - always show if libraries are detected
+	if native_library_files.size() > 0:
+		var library_list_text = ""
+		for file in native_library_files:
+			var relative_path = file.replace(project_path, "res://")
+			library_list_text += "  • %s\n" % relative_path
+
+		native_library_list.text = library_list_text
+		native_library_warning.visible = true
+	else:
+		native_library_warning.visible = false
+
+# Recursively find files with a specific extension
+func _find_files_by_extension(path: String, extension: String) -> Array:
+	var files = []
+	var dir = DirAccess.open(path)
+
+	if dir:
+		dir.list_dir_begin()
+		var file_name = dir.get_next()
+
+		while file_name != "":
+			var full_path = path.path_join(file_name)
+
+			if dir.current_is_dir():
+				# Skip hidden directories and common build/cache directories
+				if not file_name.begins_with(".") and file_name != "build" and file_name != ".godot":
+					files.append_array(_find_files_by_extension(full_path, extension))
+			else:
+				if file_name.ends_with(extension):
+					files.append(full_path)
+
+			file_name = dir.get_next()
+
+		dir.list_dir_end()
+
+	return files
+
+# Recursively find directories with a specific name pattern
+func _find_directories_by_name(path: String, pattern: String) -> Array:
+	var directories = []
+	var dir = DirAccess.open(path)
+
+	if dir:
+		dir.list_dir_begin()
+		var file_name = dir.get_next()
+
+		while file_name != "":
+			var full_path = path.path_join(file_name)
+
+			if dir.current_is_dir():
+				# Skip hidden directories and common build/cache directories
+				if not file_name.begins_with(".") and file_name != "build" and file_name != ".godot":
+					if file_name.ends_with(pattern):
+						directories.append(full_path)
+					else:
+						directories.append_array(_find_directories_by_name(full_path, pattern))
+
+			file_name = dir.get_next()
+
+		dir.list_dir_end()
+
+	return directories
 
 func _on_scan_button_pressed() -> void:
 	debug_print("Scan button pressed")

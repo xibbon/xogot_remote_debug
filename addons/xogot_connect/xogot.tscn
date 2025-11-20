@@ -108,6 +108,7 @@ custom_minimum_size = Vector2(0, 32)
 layout_mode = 2
 
 [node name="ExplanationLabel" type="Label" parent="LoginPanel/VBoxContainer"]
+custom_minimum_size = Vector2(40, 0)
 layout_mode = 2
 text = "To share your games with friends, we need to authenticate you. Choose your preferred login method below."
 horizontal_alignment = 1
@@ -165,6 +166,7 @@ text = "Sign in with Email"
 horizontal_alignment = 1
 
 [node name="EmailInstructions" type="Label" parent="LoginPanel/EmailLoginPanel"]
+custom_minimum_size = Vector2(40, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "Enter your email address to receive a verification code"
@@ -201,6 +203,7 @@ visible = false
 layout_mode = 2
 
 [node name="VerificationInstructions" type="Label" parent="LoginPanel/EmailLoginPanel/VerificationPanel"]
+custom_minimum_size = Vector2(40, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "Check your email for the verification code"
@@ -311,6 +314,7 @@ text = "Sign in with Apple"
 horizontal_alignment = 1
 
 [node name="AppleInstructions" type="Label" parent="LoginPanel/AppleLoginPanel"]
+custom_minimum_size = Vector2(40, 0)
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 text = "1. Open browser
@@ -329,6 +333,7 @@ layout_mode = 2
 text = "Open Browser"
 
 [node name="UrlLabel" type="Label" parent="LoginPanel/AppleLoginPanel"]
+custom_minimum_size = Vector2(40, 0)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 theme_override_font_sizes/font_size = 14
@@ -598,6 +603,48 @@ custom_minimum_size = Vector2(44, 44)
 layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 text = "Click the 'Remote Deploy' button and select a device."
+autowrap_mode = 2
+
+[node name="NativeLibraryWarning" type="PanelContainer" parent="ScanPanel/VBoxContainer"]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+
+[node name="VBoxContainer" type="VBoxContainer" parent="ScanPanel/VBoxContainer/NativeLibraryWarning"]
+layout_mode = 2
+theme_override_constants/separation = 8
+
+[node name="HBoxContainer" type="HBoxContainer" parent="ScanPanel/VBoxContainer/NativeLibraryWarning/VBoxContainer"]
+layout_mode = 2
+
+[node name="WarningIcon" type="Label" parent="ScanPanel/VBoxContainer/NativeLibraryWarning/VBoxContainer/HBoxContainer"]
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 0.6, 0, 1)
+theme_override_font_sizes/font_size = 24
+text = "⚠"
+
+[node name="WarningLabel" type="Label" parent="ScanPanel/VBoxContainer/NativeLibraryWarning/VBoxContainer/HBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_colors/font_color = Color(1, 0.6, 0, 1)
+text = "iOS Native Libraries Detected"
+autowrap_mode = 2
+
+[node name="MessageLabel" type="Label" parent="ScanPanel/VBoxContainer/NativeLibraryWarning/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.9, 0.9, 0.9, 1)
+text = "The following native libraries will not be available during remote debugging:"
+autowrap_mode = 2
+
+[node name="LibraryList" type="Label" parent="ScanPanel/VBoxContainer/NativeLibraryWarning/VBoxContainer"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(40, 0)
+layout_mode = 2
+theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 autowrap_mode = 2
 
 [connection signal="pressed" from="LoginPanel/VBoxContainer/AppleLoginButton" to="." method="_on_apple_login_button_pressed"]
