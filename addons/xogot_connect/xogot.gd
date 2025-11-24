@@ -1102,10 +1102,10 @@ func _on_version_mismatch_canceled(device_version: String):
 ## Check if a device can connect without pairing
 func _can_device_connect(device_data: Dictionary) -> bool:
 	var device_id = device_data.get("deviceId", "")
-	var device_user_id = device_data.get("userId", "")
+	var device_user_id = str(device_data.get("userId", ""))
 
-	# Priority 1: Same user ID
-	if device_user_id != "" and user.user_id != "" and device_user_id == user.user_id:
+	# Priority 1: Same user ID (compare as strings to handle int/string mismatch)
+	if device_user_id != "" and device_user_id != "0" and user.user_id != 0 and device_user_id == str(user.user_id):
 		return true
 
 	# Priority 2: Previously paired
@@ -1123,9 +1123,9 @@ func _can_device_connect(device_data: Dictionary) -> bool:
 ## Get badge text for UI display
 func _get_device_badge_text(device_data: Dictionary) -> String:
 	var device_id = device_data.get("deviceId", "")
-	var device_user_id = device_data.get("userId", "")
+	var device_user_id = str(device_data.get("userId", ""))
 
-	if device_user_id != "" and user.user_id != "" and device_user_id == user.user_id:
+	if device_user_id != "" and device_user_id != "0" and user.user_id != 0 and device_user_id == str(user.user_id):
 		return "Same Account"
 	if pairing_manager.is_paired(device_id):
 		return "Paired"
@@ -1134,9 +1134,9 @@ func _get_device_badge_text(device_data: Dictionary) -> String:
 ## Get device priority for sorting (lower = higher priority)
 func _get_device_priority(device_data: Dictionary) -> int:
 	var device_id = device_data.get("deviceId", "")
-	var device_user_id = device_data.get("userId", "")
+	var device_user_id = str(device_data.get("userId", ""))
 
-	if device_user_id != "" and user.user_id != "" and device_user_id == user.user_id:
+	if device_user_id != "" and device_user_id != "0" and user.user_id != 0 and device_user_id == str(user.user_id):
 		return 0  # Highest priority
 	if pairing_manager.is_paired(device_id):
 		return 1  # Second priority
