@@ -26,6 +26,9 @@ func _enter_tree():
 	# DOCK_SLOT_RIGHT_UL tabs with Inspector panel
 	add_control_to_dock(DOCK_SLOT_RIGHT_UL, dock)
 
+	# Make the Xogot tab visible after it's added to the dock
+	_make_dock_tab_visible.call_deferred()
+
 
 func _exit_tree():
 	if OS.has_feature("mobile"):
@@ -74,6 +77,15 @@ func _configure_ios_virtual_controller():
 	if settings_added:
 		ProjectSettings.save()
 		print("Xogot: Configured iOS virtual controller settings")
+
+func _make_dock_tab_visible():
+	# Find the TabContainer parent and switch to the Xogot tab
+	if dock and is_instance_valid(dock):
+		var parent = dock.get_parent()
+		if parent is TabContainer:
+			var tab_idx = parent.get_tab_idx_from_control(dock)
+			if tab_idx >= 0:
+				parent.current_tab = tab_idx
 
 func _notification(what):
 	# print("Notification: ", what)
