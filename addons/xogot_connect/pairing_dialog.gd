@@ -2,7 +2,7 @@
 class_name PairingDialog
 extends ConfirmationDialog
 
-## PairingDialog provides a UI for entering a 6-digit pairing code
+## PairingDialog provides a UI for entering a 4-digit pairing code
 ##
 ## This dialog is shown when the user attempts to connect to an unpaired device.
 ## It prompts the user to enter the pairing code displayed on the remote device.
@@ -35,9 +35,18 @@ func _ready():
 		# Only allow numbers
 		code_input.text_changed.connect(_on_code_input_text_changed)
 
-		# Enable OK button when 4 digits entered
+		# Enable OK button when 4 digits entered, and auto-submit
 		code_input.text_changed.connect(func(text):
 			get_ok_button().disabled = text.length() != 4
+			# Auto-submit when 4 digits are entered
+			if text.length() == 4:
+				_submit_code.call_deferred()
+		)
+
+		# Allow Enter key to submit
+		code_input.text_submitted.connect(func(_text):
+			if code_input.text.length() == 4:
+				_submit_code()
 		)
 
 		# Auto-focus input
@@ -52,6 +61,11 @@ func _update_dialog_text():
 		dialog_text = "Enter the 4-digit pairing code displayed on:\n%s" % device_name
 	else:
 		dialog_text = "Enter the 4-digit pairing code displayed on the device"
+
+func _submit_code() -> void:
+	if code_input and code_input.text.length() == 4:
+		emit_signal("code_entered", code_input.text)
+		hide()
 
 func _on_code_input_text_changed(text: String) -> void:
 	# Filter to only allow numeric input
