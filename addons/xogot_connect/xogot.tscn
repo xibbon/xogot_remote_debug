@@ -97,6 +97,16 @@ custom_minimum_size = Vector2(280, 0)
 layout_mode = 2
 size_flags_horizontal = 4
 
+[node name="LoginBackButton" type="Button" parent="LoginPanel/VBoxContainer"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "← Back to Devices"
+flat = true
+
+[node name="BackSpacer" type="Control" parent="LoginPanel/VBoxContainer"]
+custom_minimum_size = Vector2(0, 10)
+layout_mode = 2
+
 [node name="XogotTitle" type="Label" parent="LoginPanel/VBoxContainer"]
 layout_mode = 2
 theme_override_font_sizes/font_size = 32
@@ -647,6 +657,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.7, 0.7, 0.7, 1)
 autowrap_mode = 2
 
+[connection signal="pressed" from="LoginPanel/VBoxContainer/LoginBackButton" to="." method="_on_login_back_button_pressed"]
 [connection signal="pressed" from="LoginPanel/VBoxContainer/AppleLoginButton" to="." method="_on_apple_login_button_pressed"]
 [connection signal="pressed" from="LoginPanel/VBoxContainer/EmailLoginButton" to="." method="_on_email_login_button_pressed"]
 [connection signal="pressed" from="LoginPanel/EmailLoginPanel/BackButton" to="." method="_on_email_back_button_pressed"]

@@ -210,13 +210,15 @@ func _exit_tree():
 	debug_print("Xogot Remote Debugger Plugin cleaned up")
 
 func check_login_status():
-	# Check if user has an API key or valid login token
+	# Login is optional - pairing via PIN codes works without an account
+	# If user has an API key, verify it for "Same Account" pairing benefit
 	if user.api_key != "" and user.api_key != null:
 		# Verify the API key is still valid
 		verifyUserData(user.api_key)
 	else:
 		is_logged_in = false
-		show_login_panel()
+		# Go directly to scan panel - login not required for PIN pairing
+		show_scan_panel()
 
 func show_login_panel():
 	login_panel.visible = true
@@ -1553,6 +1555,10 @@ func _on_scan_button_pressed() -> void:
 # 	print("Remote Debugging for device: ", deviceId)
 
 # Login-related button handlers
+func _on_login_back_button_pressed():
+	debug_print("Login back button pressed")
+	show_scan_panel()
+
 func _on_email_login_button_pressed():
 	debug_print("Email login button pressed")
 	show_email_login_panel()
@@ -1717,8 +1723,11 @@ func _on_logout_button_pressed():
 
 func _on_profile_button_pressed():
 	debug_print("Profile button pressed")
-	show_profile_panel()
-	update_profile_display()
+	if is_logged_in:
+		show_profile_panel()
+		update_profile_display()
+	else:
+		show_login_panel()
 
 # API Request Functions
 func get_api_key() -> String:
