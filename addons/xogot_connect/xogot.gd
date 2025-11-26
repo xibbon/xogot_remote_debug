@@ -1414,23 +1414,13 @@ func _on_pairing_timeout() -> void:
 		printerr("[Pairing] Pairing request timed out")
 		emit_signal("pairing_failed", device_id, "Pairing timed out. Check the code and try again.")
 
-## Called when pairing succeeds - auto-launch game
+## Called when pairing succeeds
 func _on_pairing_succeeded(device_id: String) -> void:
 	debug_print("[Pairing] Pairing succeeded for device: %s" % device_id)
 
 	# Update UI to show paired status
 	_refresh_device_list()
 	_sync_devices_to_export_platform()
-
-	# Auto-launch game on paired device
-	if discovered_devices.has(device_id):
-		if export_platform:
-			export_platform.selected_device_id = device_id
-			debug_print("[Pairing] Export platform updated to use device: %s" % device_id)
-		else:
-			printerr("[Pairing] Export platform is null")
-	else:
-		printerr("[Pairing] Device %s not found in discovered_devices" % device_id)
 
 ## Called when pairing fails
 func _on_pairing_failed(device_id: String, reason: String) -> void:
