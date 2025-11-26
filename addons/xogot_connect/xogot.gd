@@ -97,6 +97,9 @@ var current_version_prompt_device_id: String = ""
 
 # Pairing system
 var pairing_manager: PairingManager = null
+var pairing_timeout_timer: Timer = null
+var pending_pairing_device_id: String = ""
+const PAIRING_TIMEOUT_SECONDS := 5.0
 signal pairing_succeeded(device_id: String)
 signal pairing_failed(device_id: String, reason: String)
 
@@ -539,6 +542,7 @@ func processUdpListener():
 	if udp_client and udp_client.is_bound():
 		while udp_client.get_available_packet_count() > 0:
 			var packet = udp_client.get_packet()
+			var sender_ip = udp_client.get_packet_ip()
 			var message = packet.get_string_from_utf8()
 			# print("UDP Message: ", message)
 
@@ -547,8 +551,14 @@ func processUdpListener():
 			var json = json_parser.parse(message)
 			if json == OK:
 				var data: Dictionary = json_parser.get_data()
-				# Check for Swift UDPMessage format
-				if data.has("messageType") and data.has("deviceName") and data.has("address") and data.has("dataPort"):
+				var message_type = data.get("messageType", "")
+
+				# Handle pairing response via UDP
+				if message_type == "pairing_response":
+					print("[UDP] Received pairing_response from %s" % sender_ip)
+					handle_pairing_response(data, sender_ip)
+				# Check for Swift UDPMessage format (device advertisement)
+				elif data.has("messageType") and data.has("deviceName") and data.has("address") and data.has("dataPort"):
 					add_device_to_ui(data)
 				else:
 					printerr("Received JSON, but missing required fields: ", message)
@@ -587,8 +597,8 @@ func processTcpListener():
 			client.poll()
 
 			# Check for available data
-			if client.get_available_bytes() > 0:
-				var available_bytes = client.get_available_bytes()
+			var available_bytes = client.get_available_bytes()
+			if available_bytes > 0:
 				debug_print("[TCP] Available bytes: %d" % available_bytes)
 
 				# Read raw bytes first
@@ -658,6 +668,27 @@ func processTcpListener():
 					debug_print("[TCP] Message type: %s" % message_type)
 
 					match message_type:
+						"sync_message":
+							# Handle wrapped messages with base64-encoded data
+							var encoded_data = msg.get("data", "")
+							if encoded_data != "":
+								var decoded_bytes = Marshalls.base64_to_raw(encoded_data)
+								var decoded_string = decoded_bytes.get_string_from_utf8()
+								debug_print("[TCP] Decoded sync_message data: %s" % decoded_string)
+
+								# Parse the inner message
+								var inner_parser = JSON.new()
+								if inner_parser.parse(decoded_string) == OK:
+									var inner_msg = inner_parser.get_data()
+									var inner_type = inner_msg.get("messageType", "")
+									debug_print("[TCP] Inner message type: %s" % inner_type)
+
+									if inner_type == "pairing_response":
+										var client_ip = client.get_connected_host()
+										handle_pairing_response(inner_msg, client_ip)
+								else:
+									printerr("[TCP] Failed to parse inner sync_message data")
+
 						"request":
 							debug_print("[TCP] Received sync request from client")
 
@@ -1284,10 +1315,12 @@ func send_pairing_request(device_data: Dictionary, pairing_code: String) -> void
 	var json_data = JSON.stringify(request)
 	var data = json_data.to_utf8_buffer()
 
+	debug_print("[Pairing] Sending UDP to %s:%d" % [target_address, int(target_port)])
+
 	# Send via UDP
 	var udp = PacketPeerUDP.new()
 	udp.set_broadcast_enabled(true)
-	var err = udp.connect_to_host(target_address, target_port)
+	var err = udp.connect_to_host(target_address, int(target_port))
 	if err != OK:
 		printerr("[Pairing] Failed to connect for pairing request: %d" % err)
 		emit_signal("pairing_failed", device_id, "Network error")
@@ -1299,17 +1332,23 @@ func send_pairing_request(device_data: Dictionary, pairing_code: String) -> void
 		emit_signal("pairing_failed", device_id, "Failed to send request")
 	else:
 		debug_print("[Pairing] Request sent to %s:%s" % [target_address, target_port])
+		# Start pairing timeout
+		_start_pairing_timeout(device_id)
 
 	udp.close()
 
 ## Handle pairing response from device
 func handle_pairing_response(data: Dictionary, client_ip: String) -> void:
+	debug_print("[Pairing] Received pairing response: %s" % str(data))
 	var response_id = data.get("id", "")
 	var accepted = data.get("accepted", false)
 	var session_token = data.get("sessionToken", "")
 	var reason = data.get("reason", "Unknown error")
 
-	debug_print("[Pairing] Response from %s: accepted=%s, token=%s" % [client_ip, str(accepted), session_token])
+	# Cancel pairing timeout since we got a response
+	_cancel_pairing_timeout()
+
+	debug_print("[Pairing] Response from %s: accepted=%s, token=%s, reason=%s" % [client_ip, str(accepted), session_token, reason])
 
 	# Find device by IP
 	var device_data = _get_device_by_ip(client_ip)
@@ -1344,6 +1383,36 @@ func handle_pairing_response(data: Dictionary, client_ip: String) -> void:
 	else:
 		printerr("[Pairing] Pairing rejected: %s" % reason)
 		emit_signal("pairing_failed", device_id, reason)
+
+## Start pairing timeout timer
+func _start_pairing_timeout(device_id: String) -> void:
+	pending_pairing_device_id = device_id
+
+	# Create timer if needed
+	if pairing_timeout_timer == null:
+		pairing_timeout_timer = Timer.new()
+		pairing_timeout_timer.one_shot = true
+		pairing_timeout_timer.timeout.connect(_on_pairing_timeout)
+		add_child(pairing_timeout_timer)
+
+	# Start/restart timer
+	pairing_timeout_timer.start(PAIRING_TIMEOUT_SECONDS)
+	debug_print("[Pairing] Started timeout timer for %s seconds" % PAIRING_TIMEOUT_SECONDS)
+
+## Cancel pairing timeout timer
+func _cancel_pairing_timeout() -> void:
+	if pairing_timeout_timer != null and not pairing_timeout_timer.is_stopped():
+		pairing_timeout_timer.stop()
+		debug_print("[Pairing] Cancelled timeout timer")
+	pending_pairing_device_id = ""
+
+## Called when pairing times out
+func _on_pairing_timeout() -> void:
+	if pending_pairing_device_id != "":
+		var device_id = pending_pairing_device_id
+		pending_pairing_device_id = ""
+		printerr("[Pairing] Pairing request timed out")
+		emit_signal("pairing_failed", device_id, "Pairing timed out. Check the code and try again.")
 
 ## Called when pairing succeeds - auto-launch game
 func _on_pairing_succeeded(device_id: String) -> void:
@@ -1652,7 +1721,8 @@ func _on_get_user_completed(result: int, response_code: int, headers: PackedStri
 			# Update user data based on API response
 			# Expected fields: id, username, displayName, email, dateCreated
 			if user_data.has("id"):
-				user.user_id = user_data["id"]
+				var raw_id = user_data["id"]
+				user.user_id = int(raw_id) if raw_id != null else 0
 			if user_data.has("username"):
 				user.user_name = user_data["username"]
 			if user_data.has("email"):
@@ -1705,7 +1775,7 @@ func authenticate_with_api_key(api_key: String):
 
 func logout():
 	user.api_key = ""
-	user.user_id = ""
+	user.user_id = 0
 	user.email = ""
 	user.user_name = ""
 	saveUser()
@@ -1840,7 +1910,8 @@ func _on_verify_code_completed(result: int, response_code: int, headers: PackedS
 				debug_print("Code verified successfully")
 				# Store user information
 				var user_data = response["user"]
-				user.user_id = user_data["id"]
+				var raw_id = user_data["id"]
+				user.user_id = int(raw_id) if raw_id != null else 0
 				user.user_name = user_data["username"]
 				# Authenticate with the returned API key
 				authenticate_with_api_key(response["apiKey"])
